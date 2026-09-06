@@ -90,6 +90,20 @@ function pfzPolygon(lat: number, lng: number): L.LatLngExpression[] {
 
 export type MapCenter = { lat: number; lng: number };
 
+export interface DrawnRoute {
+  coords: [number, number][];
+  color: string;
+  dash?: boolean;
+}
+
+export interface FitBox {
+  s: number;
+  w: number;
+  n: number;
+  e: number;
+  nonce: number;
+}
+
 function MapEvents({ onMove }: { onMove: (zoom: number, center: MapCenter) => void }) {
   const map = useMap();
   useEffect(() => {
@@ -114,6 +128,16 @@ function MapReady({ onReady }: { onReady: (map: L.Map) => void }) {
   return null;
 }
 
+function FitBounds({ box }: { box: FitBox | null | undefined }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!box) return;
+    map.fitBounds([[box.s, box.w], [box.n, box.e]], { padding: [24, 24] });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [box?.nonce]);
+  return null;
+}
+
 export default function LeafletBase({
   styleMode,
   layers,
@@ -122,6 +146,9 @@ export default function LeafletBase({
   onReady,
   onInspect,
   ports,
+  route,
+  routeAlt,
+  fit,
 }: {
   styleMode: StyleMode;
   layers: Record<LayerId, boolean>;
@@ -131,6 +158,9 @@ export default function LeafletBase({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onInspect: (data: any) => void;
   ports: { name: string; lat: number; lng: number }[];
+  route?: DrawnRoute | null;
+  routeAlt?: DrawnRoute | null;
+  fit?: FitBox | null;
 }) {
   const icons = useMemo(() => {
     const user = L.divIcon({
@@ -179,6 +209,24 @@ export default function LeafletBase({
       )}
       <MapEvents onMove={onMove} />
       <MapReady onReady={onReady} />
+      <FitBounds box={fit} />
+
+      {routeAlt && routeAlt.coords.length > 1 && (
+        <Polyline
+          positions={routeAlt.coords}
+          pathOptions={{ color: routeAlt.color, weight: 3, opacity: 0.85, dashArray: "8 7" }}
+        />
+      )}
+      {route && route.coords.length > 1 && (
+        <>
+          <Polyline
+            positions={route.coords}
+            pathOptions={{ color: route.color, weight: 4.5, opacity: 0.95 }}
+          />
+          <Circle center={route.coords[0]} radius={600} pathOptions={{ color: route.color, weight: 0, fillColor: "#35C98A", fillOpacity: 1 }} />
+          <Circle center={route.coords[route.coords.length - 1]} radius={600} pathOptions={{ color: route.color, weight: 0, fillColor: "#F4B942", fillOpacity: 1 }} />
+        </>
+      )}
 
       {layers.sst && (
         <>

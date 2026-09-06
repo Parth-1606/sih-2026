@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { userLocation } from "@/lib/mock";
-import type { LayerId, MapCenter, StyleMode } from "./LeafletBase";
+import type { DrawnRoute, FitBox, LayerId, MapCenter, StyleMode } from "./LeafletBase";
 
 // Client-only: Leaflet/Google touch `window` at import time, so never SSR them.
 const LeafletBase = dynamic(() => import("./LeafletBase"), {
@@ -49,6 +49,9 @@ export default function MarineMap({
   onSelectPFZ,
   onSelectFeature,
   focus,
+  route,
+  routeAlt,
+  fit,
 }: {
   height?: number | string;
   interactive?: boolean;
@@ -56,6 +59,9 @@ export default function MarineMap({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onSelectFeature?: (f: any) => void;
   focus?: { lat: number; lng: number; nonce: number } | null;
+  route?: DrawnRoute | null;
+  routeAlt?: DrawnRoute | null;
+  fit?: FitBox | null;
 }) {
   const router = useRouter();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -168,6 +174,9 @@ export default function MarineMap({
             onReady={handleReady}
             onInspect={handleInspect}
             ports={ports}
+            route={route}
+            routeAlt={routeAlt}
+            fit={fit}
           />
         ) : (
           <div className="absolute inset-0 z-0 flex items-center justify-center bg-[#0A2733] p-6">
@@ -193,6 +202,9 @@ export default function MarineMap({
           onReady={handleReady}
           onInspect={handleInspect}
           ports={ports}
+          route={route}
+          routeAlt={routeAlt}
+          fit={fit}
         />
       )}
 
