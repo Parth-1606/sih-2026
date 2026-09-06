@@ -6,25 +6,25 @@ import { CURATED_MPAS } from "@/lib/marine-zones";
 import type { DrawnRoute, FitBox, LayerId, MapCenter } from "./LeafletBase";
 
 const containerStyle = { width: "100%", height: "100%" };
-const CENTER: MapCenter = { lat: 18.55, lng: 74.0 };
+const CENTER: MapCenter = { lat: 18.85, lng: 72.7 };
 
 const ALERT_PINS = [
-  { id: "ALT-001", lat: 18.62, lng: 74.28, title: "Strong wind advisory", sub: "Eastern offshore • until 18:00" },
-  { id: "ALT-004", lat: 18.38, lng: 73.66, title: "Lightning cells", sub: "Western offshore • until 11:00" },
+  { id: "ALT-001", lat: 18.75, lng: 72.45, title: "Strong wind advisory", sub: "Western offshore • until 18:00" },
+  { id: "ALT-004", lat: 18.95, lng: 72.55, title: "Lightning cells", sub: "Northwest offshore • until 11:00" },
 ];
 
 const GEOFENCES: { lat: number; lng: number }[][] = [
   [
-    { lat: 18.66, lng: 73.78 },
-    { lat: 18.74, lng: 73.92 },
-    { lat: 18.68, lng: 74.0 },
-    { lat: 18.6, lng: 73.86 },
+    { lat: 18.95, lng: 72.55 },
+    { lat: 19.0, lng: 72.68 },
+    { lat: 18.93, lng: 72.75 },
+    { lat: 18.88, lng: 72.62 },
   ],
   [
-    { lat: 18.3, lng: 74.1 },
-    { lat: 18.42, lng: 74.3 },
-    { lat: 18.32, lng: 74.42 },
-    { lat: 18.22, lng: 74.22 },
+    { lat: 18.6, lng: 72.6 },
+    { lat: 18.7, lng: 72.72 },
+    { lat: 18.63, lng: 72.82 },
+    { lat: 18.53, lng: 72.7 },
   ],
 ];
 

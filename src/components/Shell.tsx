@@ -19,6 +19,7 @@ const NAV = [
   { id: "alerts", label: "Alerts", href: "/alerts", icon: BellIcon },
   { id: "routes", label: "Route Planner", href: "/routes", icon: RouteIcon },
   { id: "analytics", label: "Analytics", href: "/analytics", icon: ChartIcon },
+  { id: "sources", label: "Data Sources", href: "/sources", icon: GlobeIcon },
 ];
 const BOTTOM = [
   { id: "settings", label: "Settings", icon: SettingsIcon },
@@ -214,10 +215,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <Input placeholder="Search — e.g. Kochi, Veraval, Paradip" className="mt-2" />
           <div className="space-y-1">
             {[
-              "My Location — 18.52°N, 73.85°E",
-              "Mumbai — 19.07°N, 72.87°E",
-              "Kochi — 9.93°N, 76.26°E",
-              "Chennai — 13.08°N, 80.27°E",
+              "Mumbai Harbour — 18.93°N, 72.90°E",
+              "Alibaug — 18.64°N, 72.87°E",
+              "Kochi — 9.96°N, 76.20°E",
+              "Chennai — 13.10°N, 80.29°E",
             ].map(l => (
               <Button key={l} variant="ghost" className="w-full justify-start" onClick={() => setShowLocation(false)}>{l}</Button>
             ))}
@@ -236,7 +237,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <div className="p-5 space-y-2">
             {[
               { t: "Increasing wind expected", d: "Eastern offshore • valid until 18:00", c: "#F4B942" },
-              { t: "Favourable fishing — NE zone", d: "PFZ-001 • 18.4km NE", c: "#35C98A" },
+              { t: "Favourable fishing — SW zone", d: "PFZ-001 • 32km SW", c: "#35C98A" },
               { t: "Lightning cells — west", d: "45km W • until 11:00", c: "#F4B942" },
             ].map(a => (
               <div key={a.t} className="p-3 rounded-xl bg-card border flex gap-3">

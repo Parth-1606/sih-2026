@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ORCA — Marine EcOsystem Reasoning with Collaborative Agents (SIH26176)
 
-## Getting Started
+Agentic-AI marine intelligence demo for fishermen and marine stakeholders:
+Potential Fishing Zones, sea-safety assessment, hazard/geofence alerts and
+water-only safe-route planning. Dark mission-control UI, no redesign.
 
-First, run the development server:
+## Quick start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev        # http://localhost:3001 (3000 is often taken)
+npm test           # vitest: risk, geofence, router, adapter-schema tests
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Copy `.env.example` to `.env.local` only if you want Google Maps mode
+(`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`). Everything else is keyless.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Data sources
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open, no registration: Open-Meteo (marine+forecast), NASA MODIS-Aqua &
+JPL MUR SST via NOAA ERDDAP, INCOIS advisory validity, OSM/Overpass ports,
+Esri/OSM/CARTO tiles. See **Data Sources** page (`/sources`) for the full
+Live / Demo data / Unavailable directory — nothing simulated is labelled Live.
 
-## Learn More
+Seeded scenario: **Mumbai Harbour (18.93°N, 72.90°E)** with offshore Demo
+PFZs. Other harbours (Alibaug → Paradip) via map search or the assistant.
 
-To learn more about Next.js, take a look at the following resources:
+## Architecture
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+open APIs ──┐
+INCOIS page ─┼─▶ Next.js API routes (/api/…) + TTL disk cache (.data/)
+ERDDAP ─────┘   (demo stand-in for Airflow + PostGIS/MinIO)
+        │
+        ▼
+src/lib/marine/adapters.ts ──▶ NormalizedRecord[] (source, timestamps,
+  PFZ · OSF · SST/chl · alerts · ports · EEZ · MPA · bathymetry   units, confidence, isMock/dataMode)
+        │
+        ▼
+src/lib/agents/planner.ts ──▶ 8 agents: planner, marine-data,
+  ocean-analytics, weather-hazard, geospatial, route, risk,
+  explanation, visualization → answer + trace
+        │
+        ▼
+React UI (Next.js + Leaflet, Google optional): dashboard, map,
+assistant + How-produced panel, alerts, water-only routes, analytics
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Cross-cutting: `risk.ts` (vessel thresholds), `geo.ts` (GeoJSON math),
+`router.ts` (water-only routing), `i18n.ts` (EN/HI + registry), `schema.ts`.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Full doc: `ARCHITECTURE.md`.

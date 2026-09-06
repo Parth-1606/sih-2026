@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { userLocation } from "@/lib/mock";
+import DataBadge from "@/components/DataBadge";
 import type { DrawnRoute, FitBox, LayerId, MapCenter, StyleMode } from "./LeafletBase";
 
 // Client-only: Leaflet/Google touch `window` at import time, so never SSR them.
@@ -52,6 +53,7 @@ export default function MarineMap({
   route,
   routeAlt,
   fit,
+  animateRoute,
 }: {
   height?: number | string;
   interactive?: boolean;
@@ -62,18 +64,20 @@ export default function MarineMap({
   route?: DrawnRoute | null;
   routeAlt?: DrawnRoute | null;
   fit?: FitBox | null;
+  animateRoute?: { coords: [number, number][]; nonce: number } | null;
 }) {
   const router = useRouter();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [layers, setLayers] = useState<Record<LayerId, boolean>>(() => Object.fromEntries(LAYERS.map(l => [l.id, l.defaultOn])) as any);
   const [styleMode, setStyleMode] = useState<StyleMode>("ocean");
   const [zoom, setZoom] = useState(9);
-  const [center, setCenter] = useState<[number, number]>([18.55, 74.0]);
+  const [center, setCenter] = useState<[number, number]>([18.85, 72.7]);
   const [showLayers, setShowLayers] = useState(false);
   const [measure, setMeasure] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [inspector, setInspector] = useState<any>(null);
   const [ports, setPorts] = useState<{ name: string; lat: number; lng: number }[]>([]);
+  const [overlayOpacity, setOverlayOpacity] = useState(1);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null);
   const googleKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
@@ -205,6 +209,8 @@ export default function MarineMap({
           route={route}
           routeAlt={routeAlt}
           fit={fit}
+          animateRoute={animateRoute}
+          overlayOpacity={overlayOpacity}
         />
       )}
 
@@ -246,17 +252,28 @@ export default function MarineMap({
                     </Button>
                   </label>
                 ))}
+                <div className="pt-2 border-t mt-1">
+                  <div className="text-[11px] text-muted-foreground mb-1">Overlay opacity — {Math.round(overlayOpacity * 100)}%</div>
+                  <input type="range" min={20} max={100} value={Math.round(overlayOpacity * 100)} onChange={e => setOverlayOpacity(Number(e.target.value) / 100)} className="w-full accent-primary" />
+                </div>
               </CardContent>
             </Card>
           )}
         </div>
       </div>
 
+      <div className="absolute left-3 bottom-3 hidden sm:flex items-center gap-2 bg-card/90 border backdrop-blur px-3 py-1.5 rounded-full text-[10px] text-muted-foreground z-[1200]">
+        <span className="flex items-center gap-1"><span className="size-2 rounded-sm bg-[#F2C94C]" /> PFZ</span>
+        <span className="flex items-center gap-1"><span className="size-2 rounded-sm bg-[#FF6B6B]" /> Restricted</span>
+        <span className="flex items-center gap-1">⚓ Ports</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-4 h-0 border-t-2 border-[#35C98A]" /> Route</span>
+      </div>
+
       <div className="absolute left-1/2 -translate-x-1/2 bottom-3 flex items-center gap-2 bg-card/90 border backdrop-blur px-3 py-1.5 rounded-full text-[11px] text-muted-foreground z-[1200]">
         <span>{zoom.toFixed(1)}×</span><Separator orientation="vertical" className="h-3" /><span>{center[0].toFixed(2)}°N, {center[1].toFixed(2)}°E</span><Separator orientation="vertical" className="h-3" /><span>{styleMode}</span>
       </div>
 
-      {measure && <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[1200]"><Badge className="bg-[#F2C94C] text-[#071014] hover:bg-[#F2C94C]">18.4 km — drag map to measure</Badge></div>}
+      {measure && <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[1200]"><Badge className="bg-[#F2C94C] text-[#071014] hover:bg-[#F2C94C]">32 km — drag map to measure</Badge></div>}
 
       {inspector && (
         <motion.div initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="absolute right-3 bottom-12 w-[300px] z-[1200]">
@@ -284,7 +301,18 @@ export default function MarineMap({
                 <Button size="sm" className="flex-1">View on map</Button>
                 <Button size="sm" variant="outline" className="flex-1" onClick={() => router.push("/assistant")}>Ask AI</Button>
               </div>
-              <div className="text-[11px] text-muted-foreground">Source: INCOIS • Updated 06:00 IST • AI interpretation available</div>
+              <div className="text-[11px] text-muted-foreground space-y-1">
+                {inspector.srcName ? (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {inspector.mode && <DataBadge mode={inspector.mode} />}
+                    {inspector.srcUrl
+                      ? <a href={inspector.srcUrl} target="_blank" rel="noreferrer" className="underline">{inspector.srcName}</a>
+                      : <span>{inspector.srcName}</span>}
+                  </div>
+                ) : (
+                  <div>Source: onboard reference • AI interpretation available</div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </motion.div>

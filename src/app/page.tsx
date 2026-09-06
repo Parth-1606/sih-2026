@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import MarineMap from "@/components/MarineMap";
 import { pfzData, alerts, forecast } from "@/lib/mock";
 import { fetchLiveMarine, type LiveMarine } from "@/lib/marine-api";
+import DataBadge from "@/components/DataBadge";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +44,8 @@ export default function OverviewPage() {
           <p className="text-sm text-muted-foreground mt-2 max-w-[560px]">Monitor marine conditions, fishing zones, weather risks and operational intelligence.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="hidden sm:flex gap-1.5 bg-card"><span className={`size-1.5 rounded-full ${live ? "bg-[#35C98A] animate-pulse" : "bg-muted-foreground"}`} /> {live ? `LIVE ${live.time} IST • Open-Meteo` : "Updated 06:00 IST • INCOIS"}</Badge>
+          <Badge variant="outline" className="hidden sm:flex gap-1.5 bg-card"><span className={`size-1.5 rounded-full ${live ? "bg-[#35C98A] animate-pulse" : "bg-[#F2C94C]"}`} /> {live ? `LIVE ${live.time} IST • Open-Meteo` : "Demo data • offline"}</Badge>
+          <Button size="sm" variant="outline" className="rounded-full" onClick={() => router.push("/sources")}>Data sources →</Button>
           <Button size="sm" className="rounded-full" onClick={() => router.push("/map")}>Open full map →</Button>
         </div>
       </div>
@@ -63,12 +65,12 @@ export default function OverviewPage() {
 
         <Card className="p-4 cursor-pointer hover:ring-foreground/20 transition-all" onClick={() => document.getElementById("pfz-section")?.scrollIntoView({ behavior: "smooth" })}>
           <div className="text-[11px] tracking-[0.08em] font-semibold text-muted-foreground">NEAREST PFZ</div>
-          <div className="mt-2 text-[22px] font-semibold tracking-[-0.02em] leading-none">18.4 <span className="text-sm font-normal text-muted-foreground">km</span></div>
-          <div className="text-xs text-[#F2C94C] mt-1">↗ NE of current location</div>
+          <div className="mt-2 text-[22px] font-semibold tracking-[-0.02em] leading-none">32 <span className="text-sm font-normal text-muted-foreground">km</span></div>
+          <div className="text-xs text-[#F2C94C] mt-1">↙ SW of current location</div>
         </Card>
 
         <Card className="p-4">
-          <div className="text-[11px] tracking-[0.08em] font-semibold text-muted-foreground">SEA SURFACE TEMPERATURE {live && <span className="text-[#35C98A]">• LIVE</span>}</div>
+          <div className="text-[11px] tracking-[0.08em] font-semibold text-muted-foreground flex items-center gap-1.5">SEA SURFACE TEMPERATURE {live ? <span className="text-[#35C98A]">• LIVE</span> : <DataBadge mode="demo" />}</div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-[22px] font-semibold tracking-[-0.02em]">{sst.toFixed(1)}°C</span>
             <Badge className="bg-[#35C98A]/15 text-[#35C98A] border-[#35C98A]/20">+0.4°C</Badge>
@@ -77,7 +79,7 @@ export default function OverviewPage() {
         </Card>
 
         <Card className="p-4">
-          <div className="text-[11px] tracking-[0.08em] font-semibold text-muted-foreground">WAVE HEIGHT {live && <span className="text-[#35C98A]">• LIVE</span>}</div>
+          <div className="text-[11px] tracking-[0.08em] font-semibold text-muted-foreground flex items-center gap-1.5">WAVE HEIGHT {live ? <span className="text-[#35C98A]">• LIVE</span> : <DataBadge mode="demo" />}</div>
           <div className="mt-2 flex items-center gap-2">
             <span className="text-[22px] font-semibold tracking-[-0.02em]">{wave.toFixed(1)} <span className="text-sm font-normal text-muted-foreground">m</span></span>
             <span className="size-2 rounded-full bg-[#35C98A]" />
@@ -111,7 +113,7 @@ export default function OverviewPage() {
               </div>
               <div className="rounded-xl bg-background border p-3">
                 <div className="text-xs font-semibold text-muted-foreground">Key observation</div>
-                <div className="text-[13px] leading-5 mt-1">A high-productivity zone has been detected <span className="text-[#F2C94C] font-medium">northeast</span> of your current position — 18.4 km, confidence 91%.</div>
+                <div className="text-[13px] leading-5 mt-1">A high-productivity zone has been detected <span className="text-[#F2C94C] font-medium">southwest</span> of your current position — 32 km, confidence 91%.</div>
               </div>
               <div className="rounded-xl bg-[#F4B942]/10 border border-[#F4B942]/20 p-3">
                 <div className="text-xs font-semibold text-[#F4B942]">Upcoming change</div>

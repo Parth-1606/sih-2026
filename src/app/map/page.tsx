@@ -1,11 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import MarineMap from "@/components/MarineMap";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { searchPlaces, type PlaceResult } from "@/lib/marine-api";
+import DataBadge from "@/components/DataBadge";
+import { searchPlaces, fetchLiveMarine, type LiveMarine, type PlaceResult } from "@/lib/marine-api";
 
 export default function MapPage() {
   const [mode, setMode] = useState<"past" | "current" | "forecast">("current");
@@ -16,6 +17,21 @@ export default function MapPage() {
   const [searching, setSearching] = useState(false);
   const [focus, setFocus] = useState<{ lat: number; lng: number; nonce: number } | null>(null);
   const [focusedName, setFocusedName] = useState<string | null>(null);
+  const [live, setLive] = useState<LiveMarine | null>(null);
+
+  // Live forecast powers the timeline readout (past/current/forecast).
+  useEffect(() => {
+    let cancelled = false;
+    fetchLiveMarine()
+      .then(m => { if (!cancelled) setLive(m); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // Frame 0-12 maps across the 4 forecast days; day 0-1 = current, 2+ = forecast.
+  const dayIdx = Math.min(3, Math.floor(frame / 4));
+  const dayRow = live?.forecast?.[dayIdx];
+  const tlMode = mode === "forecast" || dayIdx >= 2 ? "forecast" : mode === "past" ? "demo" : "live";
 
   const runSearch = async (q: string) => {
     if (!q.trim()) return;
@@ -87,7 +103,7 @@ export default function MapPage() {
             )}
             {focusedName && <Badge variant="secondary" className="w-full justify-start truncate">◎ {focusedName}</Badge>}
             <div className="flex gap-1.5 flex-wrap">
-              {["Mumbai", "Kochi", "Chennai", "18.52,73.85"].map(c => (
+              {["Mumbai Harbour", "Kochi", "Chennai", "18.93,72.9"].map(c => (
                 <Badge key={c} variant="secondary" className="cursor-pointer hover:bg-secondary/80" onClick={() => { setQuery(c); runSearch(c); }}>{c}</Badge>
               ))}
             </div>
@@ -114,6 +130,8 @@ export default function MapPage() {
             </div>
             <input type="range" min={0} max={12} value={frame} onChange={e => setFrame(Number(e.target.value))} className="flex-1 w-full accent-primary" />
             <Badge variant="outline" className="font-mono whitespace-nowrap">{mode} • T{frame}:00 IST</Badge>
+            {dayRow && <Badge variant="secondary" className="font-mono whitespace-nowrap">{dayRow.day}: {dayRow.wind} kts • {dayRow.wave}m • {dayRow.risk}</Badge>}
+            <DataBadge mode={live ? tlMode : "unavailable"} stamp={live ? live.time + " IST" : undefined} />
           </div>
         </Card>
       </div>

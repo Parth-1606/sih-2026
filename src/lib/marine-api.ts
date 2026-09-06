@@ -27,7 +27,7 @@ export interface LiveMarine {
 }
 
 // Offshore Arabian Sea buoy point — marine models have no data over land,
-// and the mock user location (Pune, 18.52/73.85) is inland.
+// so readings come from open water near the selected harbour.
 export const MARINE_BUOY = { lat: 18.7, lng: 72.4 };
 
 const TZ = "Asia%2FKolkata";
@@ -127,6 +127,61 @@ export async function fetchLiveMarine(): Promise<LiveMarine> {
     currentVelocity: Math.round(at(mh.ocean_current_velocity) * 100) / 100,
     time: fmtTimeIST(mh.time?.[i]),
     forecast,
+    isLive: true,
+  };
+}
+
+export interface HourlySeries {
+  time: string[];
+  windKn: number[];
+  waveM: number[];
+  sstC: number[];
+  isLive: true;
+}
+
+// 48h hourly series for analytics charts (Live).
+export async function fetchHourlySeries(hours = 48): Promise<HourlySeries> {
+  interface Wx {
+    hourly: { time: string[]; wind_speed_10m: number[]; wind_direction_10m: number[] };
+  }
+  interface Oc {
+    hourly: { time: string[]; wave_height: number[]; wave_period: number[]; sea_surface_temperature: number[] };
+  }
+  const [w, m]: [Wx, Oc] = await Promise.all([
+    getJSON(
+      `https://api.open-meteo.com/v1/forecast?latitude=${userLocation.latitude}&longitude=${userLocation.longitude}` +
+        `&hourly=wind_speed_10m,wind_direction_10m&wind_speed_unit=kn&timezone=${TZ}&forecast_days=3`
+    ),
+    getJSON(
+      `https://marine-api.open-meteo.com/v1/marine?latitude=${MARINE_BUOY.lat}&longitude=${MARINE_BUOY.lng}` +
+        `&hourly=wave_height,wave_period,sea_surface_temperature&timezone=${TZ}&forecast_days=3`
+    ),
+  ]);
+  const now = Date.now();
+  let start = 0;
+  for (let i = 0; i < w.hourly.time.length; i++) {
+    const t = new Date(w.hourly.time[i].includes("+") || w.hourly.time[i].endsWith("Z") ? w.hourly.time[i] : w.hourly.time[i] + "+05:30").getTime();
+    if (t <= now) start = i;
+    else break;
+  }
+  const n = Math.min(hours, w.hourly.time.length - start);
+  const waveStart = (() => {
+    let s = 0;
+    for (let i = 0; i < m.hourly.time.length; i++) {
+      const t = new Date(m.hourly.time[i].includes("+") || m.hourly.time[i].endsWith("Z") ? m.hourly.time[i] : m.hourly.time[i] + "+05:30").getTime();
+      if (t <= now) s = i;
+      else break;
+    }
+    return s;
+  })();
+  const nn = Math.min(hours, m.hourly.time.length - waveStart);
+  const k = Math.min(n, nn);
+  const r = (v: number) => Math.round(v * 100) / 100;
+  return {
+    time: w.hourly.time.slice(start, start + k),
+    windKn: w.hourly.wind_speed_10m.slice(start, start + k).map(r),
+    waveM: m.hourly.wave_height.slice(waveStart, waveStart + k).map(r),
+    sstC: m.hourly.sea_surface_temperature.slice(waveStart, waveStart + k).map(r),
     isLive: true,
   };
 }

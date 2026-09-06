@@ -1,17 +1,17 @@
 import type { Conditions, Pfz, Alert } from "./types";
 
 export const mockConditions: Conditions = { sst: 28.1, chlorophyll: 0.74, wave_height: 0.8, wind_speed: 14, wind_direction: "SW", visibility: 9.2, tide: "Rising" };
-export const userLocation = { latitude: 18.52, longitude: 73.85, label: "Pune Coast • 18.52°N, 73.85°E" };
+export const userLocation = { latitude: 18.93, longitude: 72.9, label: "Mumbai Harbour • 18.93°N, 72.90°E" };
 
 export const pfzData: Pfz[] = [
-  { id: "PFZ-001", distance_km: 18.4, direction: "NE", sst: 27.8, chlorophyll: 0.92, productivity: "HIGH", confidence: 91, lat: 18.68, lng: 74.02 },
-  { id: "PFZ-002", distance_km: 31.7, direction: "E", sst: 28.3, chlorophyll: 0.81, productivity: "HIGH", confidence: 84, lat: 18.5, lng: 74.18 },
-  { id: "PFZ-003", distance_km: 42.1, direction: "SE", sst: 28.0, chlorophyll: 0.76, productivity: "MEDIUM", confidence: 72, lat: 18.32, lng: 74.05 },
+  { id: "PFZ-001", distance_km: 32, direction: "SW", sst: 27.8, chlorophyll: 0.92, productivity: "HIGH", confidence: 91, lat: 18.8, lng: 72.6 },
+  { id: "PFZ-002", distance_km: 21, direction: "NW", sst: 28.3, chlorophyll: 0.81, productivity: "HIGH", confidence: 84, lat: 19.02, lng: 72.72 },
+  { id: "PFZ-003", distance_km: 34, direction: "S", sst: 28.0, chlorophyll: 0.76, productivity: "MEDIUM", confidence: 72, lat: 18.62, lng: 72.8 },
 ];
 
 export const alerts: Alert[] = [
   { id: "ALT-001", severity: "warning", type: "strong_wind", title: "Increasing wind expected", location: "Eastern offshore region", valid_until: "18:00", issued_at: "06:30 IST", description: "Wind intensity 18–22 kts expected post-noon. Small craft advisory.", source: "INCOIS • IMD", },
-  { id: "ALT-002", severity: "info", type: "fishing_advisory", title: "Favourable fishing conditions", location: "Northeast offshore region", valid_until: "Tomorrow 06:00", issued_at: "05:00 IST", description: "High chlorophyll convergence detected northeast of current position. Confidence 91%.", source: "PFZ Advisory" },
+  { id: "ALT-002", severity: "info", type: "fishing_advisory", title: "Favourable fishing conditions", location: "Southwest offshore region", valid_until: "Tomorrow 06:00", issued_at: "05:00 IST", description: "High chlorophyll convergence detected southwest of current position. Confidence 91%.", source: "PFZ Advisory" },
   { id: "ALT-003", severity: "info", type: "high_waves", title: "Moderate swell — southern sector", location: "Arabian Sea • 120km SW", valid_until: "14:00 IST", issued_at: "04:00 IST", description: "Wave height 1.8–2.1m, period 8s. Avoid open crossing before 14:00.", source: "INCOIS Wave Model" },
   { id: "ALT-004", severity: "warning", type: "lightning", title: "Isolated lightning cells", location: "Western offshore • 45km W", valid_until: "11:00 IST", issued_at: "07:15 IST", description: "Lightning density 4–6 strokes/hr. Radar echo building.", source: "IMD Lightning" },
 ];

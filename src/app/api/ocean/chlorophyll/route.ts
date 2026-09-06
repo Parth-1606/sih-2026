@@ -23,8 +23,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "bad params" }, { status: 400 });
   }
   const key = `chla-${lat.toFixed(2)}-${lng.toFixed(2)}-${box}`;
+  const series = sp.get("series") === "daily";
   try {
-    const { data, cached } = await getOrFetch(key, 6 * 3600 * 1000, async () => {
+    const { data, cached } = await getOrFetch(key + (series ? "-daily" : ""), 6 * 3600 * 1000, async () => {
       const t = await erddapJSON("time[last]");
       const lastT: string = t.table.rows[0][0];
       const start = new Date(new Date(lastT).getTime() - 21 * 86400 * 1000).toISOString().replace(/\.\d+Z$/, "Z");
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
       const vals = rows.filter(r => r[3] != null && r[3] > 0).map(r => r[3] as number);
       const latest = [...rows].reverse().find(r => r[3] != null && (r[3] as number) > 0);
       const mean = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-      return {
+      const base = {
         meanChl: mean != null ? Math.round(mean * 1000) / 1000 : null,
         maxChl: vals.length ? Math.round(Math.max(...vals) * 1000) / 1000 : null,
         pixels: vals.length,
@@ -44,6 +45,19 @@ export async function GET(req: NextRequest) {
         windowEnd: lastT,
         source: "NASA MODIS-Aqua R2022 via NOAA CoastWatch ERDDAP (erdMH1chla1day_R2022SQ)",
       };
+      if (!series) return base;
+      // Daily means for the analytics chlorophyll chart.
+      const byDay = new Map<string, number[]>();
+      for (const r of rows) {
+        if (r[3] == null || r[3] <= 0) continue;
+        const day = r[0].slice(0, 10);
+        if (!byDay.has(day)) byDay.set(day, []);
+        byDay.get(day)!.push(r[3]);
+      }
+      const daily = [...byDay.entries()]
+        .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+        .map(([date, v]) => ({ date: date.slice(5), value: Math.round((v.reduce((x, y) => x + y, 0) / v.length) * 1000) / 1000 }));
+      return { ...base, daily };
     });
     return NextResponse.json({ ...data, cached });
   } catch (e) {

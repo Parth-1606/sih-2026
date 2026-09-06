@@ -1,22 +1,40 @@
-// ORCA collaborative-agent layer (PDF §3 layers 4–5).
-// In-app TypeScript implementation of the architecture's agent team:
-// a planner routes each query to specialist agents that read the live
-// ingestion routes, then synthesises one explainable answer with sources.
-// Maps to LangGraph/CrewAI + Ollama/vLLM in the full deployment.
-import { fetchLiveMarine, type LiveMarine } from "@/lib/marine-api";
-import { CURATED_MPAS } from "@/lib/marine-zones";
+// ORCA 8-agent collaborative workflow (PDF §3 layers 4–5).
+// Planner → Marine Data → Weather/Hazard → Ocean Analytics → Geospatial →
+// Marine Route → Risk → Explanation → Visualisation. Every step records
+// verdict, evidence, sources, timestamps and rules for the trace panel.
+import type { LiveMarine } from "@/lib/marine-api";
+import type { DataMode, NormalizedRecord } from "../marine/schema";
+import {
+  adaptEezDemo, adaptErddap, adaptMpaCurated,
+  adaptOpenMeteo, adaptPfz, adaptPortsLive, adaptUnavailable,
+} from "../marine/adapters";
+import { assessRisk, VESSELS, type RiskResult, type VesselProfile } from "../marine/risk";
+import { haversineKm, pointInPolygon } from "../marine/geo";
+import { CURATED_MPAS } from "../marine-zones";
+import { DEFAULT_SCENARIO, DEMO_PFZ, SCENARIOS, demoImdAlerts, demoOsfRecords } from "../marine/fixtures";
+import { planMarineRoutes, type MarineRouteOption } from "../marine/router";
+import { detectLang, t, type Lang } from "../marine/i18n";
 
 export type AgentName =
-  | "marine-data"
-  | "ocean-analytics"
-  | "weather-intel"
-  | "geospatial"
-  | "risk"
-  | "visualization";
+  | "marine-data" | "ocean-analytics" | "weather-hazard" | "geospatial"
+  | "route" | "risk" | "explanation" | "visualization";
+
+export const AGENT_LABELS: Record<AgentName, string> = {
+  "marine-data": "Marine Data Agent",
+  "ocean-analytics": "Ocean Analytics Agent",
+  "weather-hazard": "Weather & Hazard Agent",
+  "geospatial": "Geospatial Agent",
+  "route": "Marine Route Agent",
+  "risk": "Risk Assessment Agent",
+  "explanation": "Explanation Agent",
+  "visualization": "Visualisation Agent",
+};
 
 export interface AgentSource {
   name: string;
   url?: string;
+  at?: string;
+  mode?: DataMode;
 }
 
 export interface AgentResult {
@@ -24,188 +42,379 @@ export interface AgentResult {
   label: string;
   verdict: string;
   detail: string;
-  confidence: number; // 0-100
+  confidence: number;
   sources: AgentSource[];
+  evidence: string[];
+  rulesTriggered: string[];
+  dataTimes: string[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data?: any;
 }
 
+export interface Intent {
+  type: "pfz" | "safety" | "weather" | "alerts" | "chlorophyll" | "route" | "avoid" | "general";
+  location: { lat: number; lng: number; label: string };
+  vessel: VesselProfile;
+  when?: string;
+  raw: string;
+}
+
 export interface PlanTrace {
   query: string;
+  intent: Intent;
   agentsRun: AgentName[];
   answer: string;
   results: AgentResult[];
   sources: AgentSource[];
   live: boolean;
   generatedAt: string;
+  language: Lang;
+  risk?: RiskResult;
+  routes?: MarineRouteOption[];
 }
 
-async function getJSON<T>(url: string, timeoutMs = 20000): Promise<T> {
-  const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
-  if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`);
-  return res.json();
+export interface Conversation {
+  location: { lat: number; lng: number; label: string };
+  vessel: VesselProfile;
+  route?: MarineRouteOption[];
+  feature?: string;
+  forecastDay: number;
+  language: Lang;
 }
 
-async function liveMarineSafe(): Promise<LiveMarine | null> {
-  try {
-    return await fetchLiveMarine();
-  } catch {
-    return null;
+export const freshConversation = (): Conversation => ({
+  location: { lat: DEFAULT_SCENARIO.lat, lng: DEFAULT_SCENARIO.lng, label: DEFAULT_SCENARIO.harbour },
+  vessel: VESSELS.small,
+  forecastDay: 0,
+  language: "en",
+});
+
+function findPlace(q: string): { lat: number; lng: number; label: string } | null {
+  const lower = q.toLowerCase();
+  for (const s of SCENARIOS) {
+    if (lower.includes(s.harbour.toLowerCase()) || lower.includes(s.id)) {
+      return { lat: s.lat, lng: s.lng, label: s.harbour };
+    }
   }
+  const pfz = DEMO_PFZ.find(p => lower.includes(p.id.toLowerCase()));
+  if (pfz) return { lat: pfz.lat, lng: pfz.lng, label: pfz.id };
+  const m = q.match(/(-?\d+(\.\d+)?)\s*,\s*(-?\d+(\.\d+)?)/);
+  if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[3]), label: `${m[1]}, ${m[3]}` };
+  return null;
 }
 
-const SRC = {
-  openMeteo: { name: "Open-Meteo Marine + Forecast API", url: "https://open-meteo.com" },
-  erddap: { name: "NASA MODIS-Aqua chlorophyll (ERDDAP)", url: "https://coastwatch.pfeg.noaa.gov/erddap" },
-  osm: { name: "OpenStreetMap (Overpass)", url: "https://www.openstreetmap.org" },
-  incois: { name: "INCOIS PFZ Advisory", url: "https://incois.gov.in/MarineFisheries/PfzAdvisory" },
-};
-
-async function marineDataAgent(): Promise<AgentResult> {
-  const m = await liveMarineSafe();
-  if (!m) {
-    return {
-      agent: "marine-data", label: "Marine Data Discovery", verdict: "OFFLINE — using onboard climatology",
-      detail: "Live ocean feed unreachable; falling back to regional reference values (SST 28.1°C, wave 0.8m).",
-      confidence: 40, sources: [SRC.openMeteo],
-    };
-  }
-  return {
-    agent: "marine-data", label: "Marine Data Discovery",
-    verdict: `SST ${m.sst.toFixed(1)}°C • wave ${m.waveHeight.toFixed(1)}m / ${m.wavePeriod.toFixed(0)}s • current ${m.currentVelocity} m/s`,
-    detail: `Offshore buoy (Arabian Sea): sea-surface temperature ${m.sst.toFixed(1)}°C, wave height ${m.waveHeight.toFixed(1)}m period ${m.wavePeriod.toFixed(1)}s from ${m.waveDirection}°, surface current ${m.currentVelocity} m/s. Observed ${m.time} IST.`,
-    confidence: 88, sources: [SRC.openMeteo], data: m,
-  };
+function findVessel(q: string, fallback: VesselProfile): VesselProfile {
+  const lower = q.toLowerCase();
+  if (/trawler/.test(lower)) return VESSELS.trawler;
+  if (/research/.test(lower)) return VESSELS.research;
+  if (/small|boat|craft|dunghy|dinghy/.test(lower)) return VESSELS.small;
+  return fallback;
 }
 
-async function oceanAnalyticsAgent(m: LiveMarine | null): Promise<AgentResult> {
-  let chl: number | null = null;
-  let chlWhen = "";
-  try {
-    const c = await getJSON<{ meanChl: number | null; windowEnd: string }>("/api/ocean/chlorophyll?lat=18.7&lng=72.4");
-    chl = c.meanChl;
-    chlWhen = c.windowEnd?.slice(0, 10) ?? "";
-  } catch { /* satellite gap */ }
-  const productive = chl != null && chl > 0.5;
-  const sstOk = m ? m.sst > 26 && m.sst < 30 : true;
-  const verdict = productive && sstOk
-    ? `HIGH productivity likely — chlorophyll ${chl!.toFixed(2)} mg/m³ with SST in the PFZ window`
-    : chl == null
-      ? "Satellite chlorophyll unavailable (monsoon cloud) — SST-only assessment"
-      : `MODERATE — chlorophyll ${chl.toFixed(2)} mg/m³ below the 0.5 bloom threshold`;
-  return {
-    agent: "ocean-analytics", label: "Ocean Analytics (SST / Chlorophyll / PFZ)",
-    verdict, detail: `MODIS-Aqua 21-day mean chlorophyll ${chl != null ? chl.toFixed(2) + " mg/m³" : "n/a"} (window ending ${chlWhen || "n/a"}). INCOIS derives PFZ from exactly these two fronts — SST + chlorophyll. Recommendation aligns with PFZ-001 NE (mock position pending INCOIS WebGIS sync).`,
-    confidence: chl != null ? 82 : 55, sources: [SRC.erddap, SRC.incois], data: { chl, chlWhen },
-  };
-}
-
-async function weatherIntelAgent(m: LiveMarine | null): Promise<AgentResult> {
-  if (!m) {
-    return {
-      agent: "weather-intel", label: "Weather Intelligence", verdict: "OFFLINE — reference winds only",
-      detail: "Live wind feed unreachable.", confidence: 40, sources: [SRC.openMeteo],
-    };
-  }
-  const f = m.forecast[1];
-  return {
-    agent: "weather-intel", label: "Weather Intelligence",
-    verdict: `Now ${m.windSpeedKn} kts ${m.windCompass} • visibility ${m.visibilityKm} km • tomorrow ${f ? `${f.wind} kts / ${f.wave}m seas` : "n/a"}`,
-    detail: `Current: wind ${m.windSpeedKn} kts from ${m.windDirectionDeg}° (${m.windCompass}), visibility ${m.visibilityKm} km, air ${m.airTemp}°C. Outlook (${f?.day}): max wind ${f?.wind} kts, max wave ${f?.wave}m, risk ${f?.risk}.`,
-    confidence: 90, sources: [SRC.openMeteo], data: m.forecast,
-  };
-}
-
-async function geospatialAgent(): Promise<AgentResult> {
-  let ports: { name: string; lat: number; lng: number }[] = [];
-  let src = "Curated major-port fallback";
-  try {
-    const p = await getJSON<{ ports: { name: string; lat: number; lng: number }[] }>("/api/geo/ports?s=15.5&w=72&n=20&e=74.5");
-    if (p.ports?.length) { ports = p.ports; src = "OpenStreetMap via Overpass"; }
-  } catch { /* fallback below */ }
-  if (!ports.length) {
-    const { CURATED_PORTS } = await import("@/lib/marine-zones");
-    ports = CURATED_PORTS;
-  }
-  const mpaHit = CURATED_MPAS.map(z => z.name).join("; ");
-  return {
-    agent: "geospatial", label: "Geospatial Reasoning (routing & geofencing)",
-    verdict: `${ports.length} ports/harbours indexed • ${CURATED_MPAS.length} restricted zones monitored`,
-    detail: `Nearest refuge: Mumbai / Nhava Sheva complex. Restricted polygons active: ${mpaHit}. Full EEZ polygons (VLIZ) and WDPA boundaries plug in here once API tokens are provisioned.`,
-    confidence: 75, sources: [{ name: src, url: "https://www.openstreetmap.org" }], data: { ports: ports.slice(0, 8) },
-  };
-}
-
-async function riskAgent(m: LiveMarine | null): Promise<AgentResult> {
-  const wind = m?.windSpeedKn ?? 14;
-  const wave = m?.waveHeight ?? 0.8;
-  const level = wind >= 28 || wave >= 2.5 ? "HIGH" : wind >= 17 || wave >= 1.25 ? "MEDIUM" : "LOW";
-  return {
-    agent: "risk", label: "Risk Assessment",
-    verdict: `${level} risk — wind ${wind} kts, wave ${wave.toFixed(1)}m vs small-craft limits (25 kts / 2m)`,
-    detail: level === "LOW"
-      ? "Inside safe envelope for nearshore craft. Re-check if wind exceeds 22 kts or swell passes 1.8m. Machine-readable SACHET CAP ingestion lands here when the feed endpoint is provisioned."
-      : "Outside comfort envelope — advise daylight nearshore ops only, life-jackets mandatory, file a float plan.",
-    confidence: m ? 86 : 50,
-    sources: [SRC.openMeteo, { name: "NDMA SACHET (CAP) — endpoint pending", url: "https://sachet.ndma.gov.in" }],
-  };
-}
-
-function visualizationAgent(): AgentResult {
-  return {
-    agent: "visualization", label: "Visualization & Reporting",
-    verdict: "Map centered on PFZ-001 sector with live overlays",
-    detail: "Suggested view: Ocean basemap + PFZ + ports + restricted-zone layers at zoom 9. Inspector shows per-zone SST, chlorophyll and confidence.",
-    confidence: 95, sources: [], data: { focus: { lat: 18.62, lng: 74.0 } },
-  };
-}
-
-const AGENT_FNS: Record<AgentName, (m: LiveMarine | null) => Promise<AgentResult>> = {
-  "marine-data": () => marineDataAgent(),
-  "ocean-analytics": m => oceanAnalyticsAgent(m),
-  "weather-intel": m => weatherIntelAgent(m),
-  "geospatial": () => geospatialAgent(),
-  "risk": m => riskAgent(m),
-  "visualization": () => Promise.resolve(visualizationAgent()),
-};
-
-function route(query: string): AgentName[] {
+export function detectIntent(query: string, conv: Conversation): Intent {
   const q = query.toLowerCase();
-  const want = new Set<AgentName>();
-  if (/pfz|fish|chlorophyll|sst|temperature|zone|catch/.test(q)) { want.add("ocean-analytics"); want.add("marine-data"); want.add("visualization"); }
-  if (/safe|sail|tomorrow|weather|wind|wave|go out|trip/.test(q)) { want.add("weather-intel"); want.add("risk"); want.add("marine-data"); }
-  if (/cyclone|alert|warning|danger|tsunami|lightning|storm/.test(q)) { want.add("risk"); want.add("weather-intel"); }
-  if (/rout|port|boundary|eez|restrict|geofence|harbour|harbor|distance|navigate/.test(q)) { want.add("geospatial"); want.add("visualization"); }
-  if (/map|show|where/.test(q)) want.add("visualization");
-  if (want.size === 0) ["marine-data", "ocean-analytics", "weather-intel", "risk"].forEach(a => want.add(a as AgentName));
-  // Planner always grounds on live ocean data + always proposes a view.
-  want.add("marine-data");
-  if (!/map|show|where|rout|port/.test(q)) want.add("visualization");
-  return [...want];
+  const vessel = findVessel(q, conv.vessel);
+  const location = findPlace(query) ?? conv.location;
+  let when: string | undefined;
+  if (/tomorrow/.test(q)) when = "tomorrow morning";
+  else if (/today/.test(q)) when = "today";
+  else if (/(\d+)\s*hours?\s*earlier/.test(q)) when = `${q.match(/(\d+)\s*hours?\s*earlier/)?.[1]}h earlier`;
+  else if (/(\d+)\s*hours?\s*later/.test(q)) when = `${q.match(/(\d+)\s*hours?\s*later/)?.[1]}h later`;
+
+  let type: Intent["type"] = "general";
+  if (/safest route|route to|show me.*route|plan.*route|navigate/.test(q)) type = "route";
+  else if (/avoid|boundar|restrict|eez|danger.*zone|which zones/.test(q)) type = "avoid";
+  else if (/pfz|fishing zone|where.*fish|nearest.*zone|catch/.test(q)) type = "pfz";
+  else if (/safe|sail|venture|go out|leave.*earlier|leave.*later/.test(q)) type = "safety";
+  else if (/tide|weather|wind|wave|condition/.test(q)) type = "weather";
+  else if (/cyclone|alert|warning|lightning|storm|tsunami/.test(q)) type = "alerts";
+  else if (/chlorophyll|high.*chloro|sst|temperature|productiv/.test(q)) type = "chlorophyll";
+
+  return { type, location, vessel, when, raw: query };
 }
 
-export async function askPlanner(query: string): Promise<PlanTrace> {
-  const agents = route(query);
-  const marine = await liveMarineSafe();
-  const settled = await Promise.all(
-    agents.map(async a => {
-      try {
-        return await AGENT_FNS[a](marine);
-      } catch (e) {
-        return {
-          agent: a, label: a, verdict: "Agent unavailable", detail: String(e),
-          confidence: 0, sources: [],
-        } as AgentResult;
-      }
-    })
-  );
+interface Ctx {
+  intent: Intent;
+  lang: Lang;
+  marine: LiveMarine | null;
+  records: NormalizedRecord[];
+}
+
+function srcOf(r: NormalizedRecord): AgentSource {
+  return { name: r.source.name, url: r.source.url, at: r.source.retrievedAt, mode: r.dataMode };
+}
+
+async function marineDataAgent(ctx: Ctx): Promise<AgentResult> {
+  const { marine, records } = await adaptOpenMeteo(ctx.intent.location.lat, ctx.intent.location.lng, ctx.intent.location.label);
+  ctx.marine = marine;
+  ctx.records.push(...records);
+  if (!marine) {
+    return {
+      agent: "marine-data", label: AGENT_LABELS["marine-data"],
+      verdict: "Live ocean feed unreachable — Demo reference values in use",
+      detail: "Open-Meteo request failed; downstream agents run on labelled Demo data.",
+      confidence: 35, sources: [{ name: "Open-Meteo (unreachable)", url: "https://open-meteo.com", mode: "unavailable" }],
+      evidence: [], rulesTriggered: ["R0: missing live data → cap confidence, label Demo"], dataTimes: [],
+    };
+  }
+  return {
+    agent: "marine-data", label: AGENT_LABELS["marine-data"],
+    verdict: `SST ${marine.sst.toFixed(1)}°C • wave ${marine.waveHeight.toFixed(1)}m/${marine.wavePeriod.toFixed(0)}s • current ${marine.currentVelocity} m/s`,
+    detail: `Buoy ${marine.time} IST. Wind ${marine.windSpeedKn} kts ${marine.windCompass}, visibility ${marine.visibilityKm} km.`,
+    confidence: 88, sources: records.map(srcOf),
+    evidence: [`SST ${marine.sst.toFixed(1)}°C`, `wave ${marine.waveHeight.toFixed(1)} m`, `wind ${marine.windSpeedKn} kts ${marine.windCompass}`],
+    rulesTriggered: [], dataTimes: [marine.time], data: marine,
+  };
+}
+
+async function oceanAnalyticsAgent(ctx: Ctx): Promise<AgentResult> {
+  const erddap = await adaptErddap(ctx.intent.location.lat, ctx.intent.location.lng, ctx.intent.location.label);
+  const pfz = await adaptPfz();
+  ctx.records.push(...erddap, ...pfz);
+  const chl = erddap.find(r => r.id === "erddap-chl");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chlVal = (chl?.data as any)?.meanChl as number | null;
+  const osf = demoOsfRecords();
+  ctx.records.push(...osf);
+  const productive = chlVal != null && chlVal > 0.5;
+  const verdict = chlVal == null
+    ? "Satellite chlorophyll unavailable (monsoon cloud) — SST-only assessment"
+    : productive
+      ? `HIGH productivity likely — chlorophyll ${chlVal.toFixed(2)} mg/m³ with SST in the PFZ window`
+      : `MODERATE — chlorophyll ${chlVal.toFixed(2)} mg/m³ below the 0.5 bloom threshold`;
+  return {
+    agent: "ocean-analytics", label: AGENT_LABELS["ocean-analytics"], verdict,
+    detail: `MODIS-Aqua 21-day mean vs INCOIS PFZ logic (SST + chlorophyll fronts). Demo PFZ positions mirror the INCOIS advisory shape until WebGIS nodes sync.`,
+    confidence: chlVal != null ? 80 : 55,
+    sources: [...erddap.map(srcOf), ...pfz.filter(r => !r.isMock).map(srcOf)],
+    evidence: chlVal != null ? [`chlorophyll ${chlVal.toFixed(2)} mg/m³ (21-day mean)`] : ["chlorophyll: no valid pixels"],
+    rulesTriggered: productive ? ["P1: chl > 0.5 + SST 26–30°C → HIGH productivity"] : [],
+    dataTimes: chl?.observedAt ? [chl.observedAt] : [],
+    data: { chl: chlVal },
+  };
+}
+
+async function weatherHazardAgent(ctx: Ctx): Promise<AgentResult> {
+  const demo = demoImdAlerts();
+  ctx.records.push(...demo);
+  const m = ctx.marine;
+  const f = m?.forecast?.[1];
+  const lines = [
+    ...(m ? [`wind ${m.windSpeedKn} kts ${m.windCompass}`, `wave ${m.waveHeight.toFixed(1)} m`, `visibility ${m.visibilityKm} km`] : ["live wind/wave: unavailable"]),
+    `Demo IMD: strong-wind watch (18–22 kts) + lightning cells W offshore`,
+  ];
+  return {
+    agent: "weather-hazard", label: AGENT_LABELS["weather-hazard"],
+    verdict: m ? `Now ${m.windSpeedKn} kts • tomorrow ${f ? `${f.wind} kts / ${f.wave} m, risk ${f.risk}` : "n/a"} • 2 Demo hazard advisories` : "Live weather unavailable — Demo advisories only",
+    detail: lines.join(" • "),
+    confidence: m ? 85 : 45,
+    sources: [
+      ...(m ? [{ name: "Open-Meteo Forecast", url: "https://open-meteo.com", mode: "live" as DataMode }] : []),
+      ...demo.map(srcOf),
+    ],
+    evidence: lines,
+    rulesTriggered: (m && m.windSpeedKn >= 17) || demo.length ? ["H1: wind ≥17 kts or active advisory → flag caution"] : [],
+    dataTimes: m ? [m.time] : [],
+    data: { forecast: m?.forecast },
+  };
+}
+
+async function geospatialAgent(ctx: Ctx): Promise<AgentResult> {
+  const ports = await adaptPortsLive();
+  const mpas = adaptMpaCurated();
+  const eez = adaptEezDemo();
+  ctx.records.push(...ports, ...mpas, ...eez);
+  const { location } = ctx.intent;
+  const hits = CURATED_MPAS.filter(z => pointInPolygon(location.lat, location.lng, z.polygon as [number, number][]));
+  const near = CURATED_MPAS.map(z => ({
+    z, d: Math.min(...z.polygon.map(([la, ln]) => Math.hypot((location.lat - la) * 111, (location.lng - ln) * 111))),
+  })).sort((a, b) => a.d - b.d)[0];
+  const livePorts = ports.filter(p => !p.isMock).length;
+  return {
+    agent: "geospatial", label: AGENT_LABELS["geospatial"],
+    verdict: hits.length
+      ? `INSIDE restricted zone: ${hits.map(h => h.name).join(", ")}`
+      : `${ports.length} ports indexed (${livePorts} live OSM) • nearest restricted zone ${near.z.name.split(" (")[0]} ≈${near.d.toFixed(0)} km`,
+    detail: `Point-in-polygon over ${CURATED_MPAS.length} MPA boxes + simplified EEZ line. Full VLIZ/WDPA polygons plug in unchanged.`,
+    confidence: 78,
+    sources: [...ports.slice(0, 1).map(srcOf), ...mpas.slice(0, 1).map(srcOf)],
+    evidence: hits.length ? [`inside: ${hits.map(h => h.name).join(", ")}`] : [`MPA clearance ≈${near.d.toFixed(0)} km`],
+    rulesTriggered: hits.length ? ["G1: inside restricted polygon → hard geofence alert"] : [],
+    dataTimes: [],
+    data: { inside: hits.map(h => h.name), ports: ports.slice(0, 6) },
+  };
+}
+
+async function routeAgent(ctx: Ctx, destName?: string): Promise<AgentResult> {
+  const dest = destName
+    ? DEMO_PFZ.find(p => p.id.toLowerCase() === destName.toLowerCase())
+    : DEMO_PFZ[0];
+  if (!dest) {
+    return {
+      agent: "route", label: AGENT_LABELS["route"], verdict: "No destination resolved",
+      detail: "Name a harbour or PFZ (e.g. PFZ-001).", confidence: 30, sources: [], evidence: [],
+      rulesTriggered: [], dataTimes: [],
+    };
+  }
+  const { direct, safe } = planMarineRoutes({
+    from: { lat: ctx.intent.location.lat, lng: ctx.intent.location.lng, name: ctx.intent.location.label },
+    to: { lat: dest.lat, lng: dest.lng, name: dest.id },
+    vessel: ctx.intent.vessel, departLabel: ctx.intent.when ?? "now",
+    safety: "cautious",
+    liveWindKts: ctx.marine?.windSpeedKn, liveWaveM: ctx.marine?.waveHeight,
+  });
+  return {
+    agent: "route", label: AGENT_LABELS["route"],
+    verdict: `2 water-only options to ${dest.id}: direct ${direct.distanceKm} km / safe ${safe.distanceKm} km (${safe.risk.recommendation})`,
+    detail: safe.explanation,
+    confidence: 76,
+    sources: [{ name: "ORCA marine router (demo bathymetry + MPA boxes)", mode: "demo" as DataMode }],
+    evidence: [
+      `direct ${direct.distanceKm} km, ${direct.durationMin} min, min depth ${direct.minDepthM} m`,
+      `safe ${safe.distanceKm} km, ${safe.durationMin} min, min depth ${safe.minDepthM} m`,
+      ...(safe.mpaConflicts.length ? [`conflicts avoided: ${safe.mpaConflicts.join("; ")}`] : ["no MPA conflicts"]),
+    ],
+    rulesTriggered: safe.eezCrossing ? ["G2: route crosses EEZ line"] : [],
+    dataTimes: [],
+    data: { direct, safe, destId: dest.id },
+  };
+}
+
+async function riskAgent(ctx: Ctx, routeInfo?: { minDepth: number | null; clearance: number | null; eez: boolean }): Promise<AgentResult> {
+  const m = ctx.marine;
+  const demo = ctx.records.find(r => r.id === "demo-imd-002");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const lightning = !!((demo?.data as any)?.lightning ?? false);
+  const risk = assessRisk({
+    windKts: m?.windSpeedKn ?? 14,
+    waveM: m?.waveHeight ?? 0.8,
+    wavePeriodS: m?.wavePeriod,
+    lightning,
+    visibilityKm: m?.visibilityKm,
+    vessel: ctx.intent.vessel,
+    minDepthOnRouteM: routeInfo?.minDepth ?? undefined,
+    mpaIntrusionKm: routeInfo?.clearance ?? undefined,
+    eezCrossing: routeInfo?.eez,
+    forecastConfidence: 72,
+    forecastWindow: ctx.intent.when ?? "now",
+  });
+  const L = ctx.lang;
+  return {
+    agent: "risk", label: AGENT_LABELS["risk"],
+    verdict: `${t(L, `risk.${risk.level}`)} — ${t(L, `rec.${risk.recommendation}`)} (${ctx.intent.vessel.label})`,
+    detail: risk.thresholdsExceeded.length ? risk.thresholdsExceeded.join(" • ") : "All core factors within vessel limits.",
+    confidence: risk.confidence,
+    sources: [{ name: "ORCA risk engine (vessel thresholds)", mode: "demo" as DataMode }],
+    evidence: [...risk.thresholdsExceeded, ...risk.supporters],
+    rulesTriggered: risk.thresholdsExceeded.map(x => `T: ${x}`),
+    dataTimes: m ? [m.time] : [],
+    data: { risk },
+  };
+}
+
+function explanationAgent(ctx: Ctx, settled: AgentResult[], lang: Lang): AgentResult {
   const by = (n: AgentName) => settled.find(r => r.agent === n);
-  const parts = settled.map(r => `**${r.label}** — ${r.verdict}`);
+  const core = ["marine-data", "ocean-analytics", "weather-hazard", "geospatial", "route", "risk"]
+    .map(n => by(n as AgentName)).filter(Boolean) as AgentResult[];
   const conf = Math.round(settled.reduce((s, r) => s + r.confidence, 0) / Math.max(1, settled.length));
-  const answer =
-    `${parts.join("\n")}\n\nOverall confidence ${conf}%. ` +
-    (by("risk") ? `Safety: ${by("risk")!.verdict.split("—")[0].trim()}. ` : "") +
-    (marine ? `All figures live as of ${marine.time} IST; satellite chlorophyll is a 21-day mean (cloud-aware).` : `Live feeds unreachable — values are reference climatology.`);
-  const sources = settled.flatMap(r => r.sources).filter((s, i, arr) => arr.findIndex(x => x.name === s.name) === i);
-  return { query, agentsRun: agents, answer, results: settled, sources, live: !!marine, generatedAt: new Date().toISOString() };
+  const liveCount = ctx.records.filter(r => r.dataMode === "live").length;
+  const demoCount = ctx.records.filter(r => r.dataMode === "demo").length;
+  const hi = lang === "hi";
+  const lines = core.map(r => `• **${t(lang, `agent.${r.agent}`)}**: ${r.verdict}`);
+  const answer = hi
+    ? `${lines.join("\n")}\n\nसमग्र विश्वास ${conf}%। ${liveCount} लाइव और ${demoCount} डेमो रिकॉर्ड इस्तेमाल हुए। अनिश्चितता: उपग्रह क्लोरोफिल 21-दिन का औसत है; आधिकारिक INCOIS/IMD सलाह को प्राथमिकता दें।`
+    : `${lines.join("\n")}\n\nOverall confidence ${conf}%. Grounded on ${liveCount} Live and ${demoCount} Demo records. Uncertainty: satellite chlorophyll is a 21-day mean; official INCOIS/IMD advisories take precedence.`;
+  return {
+    agent: "explanation", label: AGENT_LABELS["explanation"],
+    verdict: `Synthesised ${core.length} agent reports at ${conf}% confidence`,
+    detail: answer, confidence: conf,
+    sources: [],
+    evidence: core.flatMap(r => r.evidence).slice(0, 8),
+    rulesTriggered: [], dataTimes: [],
+  };
+}
+
+const ROUTE_FOR: Record<Intent["type"], AgentName[]> = {
+  pfz: ["marine-data", "ocean-analytics", "geospatial", "risk", "explanation", "visualization"],
+  safety: ["marine-data", "weather-hazard", "risk", "explanation", "visualization"],
+  weather: ["marine-data", "weather-hazard", "explanation", "visualization"],
+  alerts: ["weather-hazard", "risk", "explanation", "visualization"],
+  chlorophyll: ["ocean-analytics", "marine-data", "explanation", "visualization"],
+  route: ["marine-data", "weather-hazard", "geospatial", "route", "risk", "explanation", "visualization"],
+  avoid: ["geospatial", "risk", "explanation", "visualization"],
+  general: ["marine-data", "ocean-analytics", "weather-hazard", "risk", "explanation"],
+};
+
+export async function askPlanner(query: string, conv?: Conversation): Promise<PlanTrace> {
+  const c: Conversation = conv ?? freshConversation();
+  const lang: Lang = c.language === "en" ? detectLang(query) : c.language;
+  const intent = detectIntent(query, c);
+  const agents = ROUTE_FOR[intent.type];
+  const ctx: Ctx = { intent, lang, marine: null, records: [...adaptUnavailable()] };
+
+  const settled: AgentResult[] = [];
+  const run = async (a: AgentName, fn: () => Promise<AgentResult>) => {
+    try {
+      settled.push(await fn());
+    } catch (e) {
+      settled.push({
+        agent: a, label: AGENT_LABELS[a], verdict: "Agent unavailable", detail: String(e),
+        confidence: 0, sources: [], evidence: [], rulesTriggered: [], dataTimes: [],
+      });
+    }
+  };
+
+  // Planner: marine data first (grounds everything), then the rest in parallel.
+  await run("marine-data", () => marineDataAgent(ctx));
+  const destMatch = query.match(/pfz-?\d+/i)?.[0];
+  await Promise.all(agents.filter(a => a !== "marine-data" && a !== "explanation" && a !== "visualization").map(a => {
+    if (a === "ocean-analytics") return run(a, () => oceanAnalyticsAgent(ctx));
+    if (a === "weather-hazard") return run(a, () => weatherHazardAgent(ctx));
+    if (a === "geospatial") return run(a, () => geospatialAgent(ctx));
+    if (a === "route") return run(a, () => routeAgent(ctx, destMatch ?? undefined));
+    if (a === "risk") {
+      return run(a, async () => {
+        const rt = settled.find(r => r.agent === "route");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const safe = (rt?.data as any)?.safe;
+        return riskAgent(ctx, safe ? { minDepth: safe.minDepthM, clearance: safe.mpaClearanceKm, eez: safe.eezCrossing } : undefined);
+      });
+    }
+    return Promise.resolve();
+  }));
+
+  const expl = explanationAgent(ctx, settled, lang);
+  settled.push(expl);
+  const viz: AgentResult = {
+    agent: "visualization", label: AGENT_LABELS["visualization"],
+    verdict: "Map layers, charts and evidence panels updated",
+    detail: "PFZ + ports + restricted-zone + route overlays refreshed with source labels.",
+    confidence: 95, sources: [], evidence: [], rulesTriggered: [], dataTimes: [],
+  };
+  settled.push(viz);
+
+  const order = (a: AgentResult) => agents.indexOf(a.agent);
+  settled.sort((x, y) => order(x) - order(y));
+
+  const sources = [...ctx.records.map(srcOf), ...settled.flatMap(r => r.sources)]
+    .filter((s, i, arr) => arr.findIndex(x => x.name === s.name) === i);
+  const riskData = settled.find(r => r.agent === "risk")?.data?.risk as RiskResult | undefined;
+  const routeData = settled.find(r => r.agent === "route")?.data;
+  return {
+    query, intent, agentsRun: agents, answer: expl.detail, results: settled,
+    sources, live: !!ctx.marine, generatedAt: new Date().toISOString(), language: lang,
+    risk: riskData,
+    routes: routeData ? [routeData.direct, routeData.safe] : undefined,
+  };
+}
+
+// Keep the location name in sync for UI chips.
+export function nearHarbourName(lat: number, lng: number): string {
+  let best = SCENARIOS[0];
+  let bd = Infinity;
+  for (const s of SCENARIOS) {
+    const d = haversineKm(lat, lng, s.lat, s.lng);
+    if (d < bd) { bd = d; best = s; }
+  }
+  return best.harbour;
 }

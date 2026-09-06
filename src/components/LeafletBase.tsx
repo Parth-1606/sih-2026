@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
@@ -58,22 +58,22 @@ const LABEL_OVERLAYS: Partial<Record<StyleMode, { url: string; attribution: stri
 };
 
 const ALERT_PINS = [
-  { id: "ALT-001", lat: 18.62, lng: 74.28, title: "Strong wind advisory", sub: "Eastern offshore • until 18:00" },
-  { id: "ALT-004", lat: 18.38, lng: 73.66, title: "Lightning cells", sub: "Western offshore • until 11:00" },
+  { id: "ALT-001", lat: 18.75, lng: 72.45, title: "Strong wind advisory", sub: "Western offshore • until 18:00" },
+  { id: "ALT-004", lat: 18.95, lng: 72.55, title: "Lightning cells", sub: "Northwest offshore • until 11:00" },
 ];
 
 const GEOFENCES: L.LatLngExpression[][] = [
   [
-    [18.66, 73.78],
-    [18.74, 73.92],
-    [18.68, 74.0],
-    [18.6, 73.86],
+    [18.95, 72.55],
+    [19.0, 72.68],
+    [18.93, 72.75],
+    [18.88, 72.62],
   ],
   [
-    [18.3, 74.1],
-    [18.42, 74.3],
-    [18.32, 74.42],
-    [18.22, 74.22],
+    [18.6, 72.6],
+    [18.7, 72.72],
+    [18.63, 72.82],
+    [18.53, 72.7],
   ],
 ];
 
@@ -127,7 +127,6 @@ function MapReady({ onReady }: { onReady: (map: L.Map) => void }) {
   }, [map, onReady]);
   return null;
 }
-
 function FitBounds({ box }: { box: FitBox | null | undefined }) {
   const map = useMap();
   useEffect(() => {
@@ -136,6 +135,26 @@ function FitBounds({ box }: { box: FitBox | null | undefined }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [box?.nonce]);
   return null;
+}
+
+/** Animated vessel dot along a route. Skipped when reduced-motion is set. */
+function RouteAnimator({ job }: { job: { coords: [number, number][]; nonce: number } | null | undefined }) {
+  const [pos, setPos] = useState<[number, number] | null>(null);
+  useEffect(() => {
+    if (!job || job.coords.length < 2) return;
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    let i = 0;
+    const step = Math.max(1, Math.floor(job.coords.length / 120));
+    const id = window.setInterval(() => {
+      setPos(job.coords[Math.min(i, job.coords.length - 1)]);
+      i += step;
+      if (i >= job.coords.length) window.clearInterval(id);
+    }, 60);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.nonce]);
+  if (!pos) return null;
+  return <Circle center={pos} radius={900} pathOptions={{ color: "#fff", weight: 2, fillColor: "#4BA3FF", fillOpacity: 1 }} />;
 }
 
 export default function LeafletBase({
@@ -149,6 +168,8 @@ export default function LeafletBase({
   route,
   routeAlt,
   fit,
+  animateRoute,
+  overlayOpacity = 1,
 }: {
   styleMode: StyleMode;
   layers: Record<LayerId, boolean>;
@@ -161,6 +182,8 @@ export default function LeafletBase({
   route?: DrawnRoute | null;
   routeAlt?: DrawnRoute | null;
   fit?: FitBox | null;
+  animateRoute?: { coords: [number, number][]; nonce: number } | null;
+  overlayOpacity?: number;
 }) {
   const icons = useMemo(() => {
     const user = L.divIcon({
@@ -195,7 +218,7 @@ export default function LeafletBase({
 
   return (
     <MapContainer
-      center={[18.55, 74.0]}
+      center={[18.85, 72.7]}
       zoom={9}
       scrollWheelZoom={interactive}
       dragging={interactive}
@@ -210,6 +233,7 @@ export default function LeafletBase({
       <MapEvents onMove={onMove} />
       <MapReady onReady={onReady} />
       <FitBounds box={fit} />
+      <RouteAnimator job={animateRoute} />
 
       {routeAlt && routeAlt.coords.length > 1 && (
         <Polyline
@@ -230,17 +254,17 @@ export default function LeafletBase({
 
       {layers.sst && (
         <>
-          <Circle center={[18.62, 73.98]} radius={14000} pathOptions={{ color: "#2E9CFF", weight: 0, fillColor: "#2E9CFF", fillOpacity: 0.28 }} />
-          <Circle center={[18.45, 74.2]} radius={10000} pathOptions={{ color: "#2E9CFF", weight: 0, fillColor: "#2E9CFF", fillOpacity: 0.18 }} />
+          <Circle center={[18.78, 72.58]} radius={14000} pathOptions={{ color: "#2E9CFF", weight: 0, fillColor: "#2E9CFF", fillOpacity: 0.28 * overlayOpacity }} />
+          <Circle center={[18.95, 72.5]} radius={10000} pathOptions={{ color: "#2E9CFF", weight: 0, fillColor: "#2E9CFF", fillOpacity: 0.18 * overlayOpacity }} />
         </>
       )}
       {layers.chlorophyll && (
-        <Circle center={[18.68, 74.02]} radius={9000} pathOptions={{ color: "#35C98A", weight: 0, fillColor: "#35C98A", fillOpacity: 0.25 }} />
+        <Circle center={[18.8, 72.6]} radius={9000} pathOptions={{ color: "#35C98A", weight: 0, fillColor: "#35C98A", fillOpacity: 0.25 * overlayOpacity }} />
       )}
       {layers.waves && (
         <>
-          <Polyline positions={[[18.7, 73.7], [18.6, 73.9], [18.5, 74.1], [18.4, 74.3]]} pathOptions={{ color: "#4BA3FF", weight: 1.5, opacity: 0.7 }} />
-          <Polyline positions={[[18.65, 73.7], [18.55, 73.9], [18.45, 74.1], [18.35, 74.3]]} pathOptions={{ color: "#4BA3FF", weight: 1.2, opacity: 0.45 }} />
+          <Polyline positions={[[19.0, 72.3], [18.9, 72.5], [18.8, 72.7], [18.7, 72.9]]} pathOptions={{ color: "#4BA3FF", weight: 1.5, opacity: 0.7 }} />
+          <Polyline positions={[[18.95, 72.3], [18.85, 72.5], [18.75, 72.7], [18.65, 72.9]]} pathOptions={{ color: "#4BA3FF", weight: 1.2, opacity: 0.45 }} />
         </>
       )}
       {layers.geofences &&
@@ -255,10 +279,10 @@ export default function LeafletBase({
             <Polygon
               key={p.id}
               positions={pfzPolygon(p.lat!, p.lng!)}
-              pathOptions={{ color: "#F2C94C", weight: 1.8, fillColor: "#F2C94C", fillOpacity: 0.22 }}
+              pathOptions={{ color: "#F2C94C", weight: 1.8, fillColor: "#F2C94C", fillOpacity: 0.22 * overlayOpacity }}
               eventHandlers={{
                 click: () =>
-                  onInspect({ kind: "pfz", id: p.id, title: p.id, sub: `${p.distance_km} km ${p.direction} • ${p.productivity} productivity`, lat: `${p.lat!.toFixed(2)}°N`, lng: `${p.lng!.toFixed(2)}°E`, sst: `${p.sst}°C`, chl: `${p.chlorophyll}`, conf: p.confidence }),
+                  onInspect({ kind: "pfz", id: p.id, title: p.id, sub: `${p.distance_km} km ${p.direction} • ${p.productivity} productivity`, lat: `${p.lat!.toFixed(2)}°N`, lng: `${p.lng!.toFixed(2)}°E`, sst: `${p.sst}°C`, chl: `${p.chlorophyll}`, conf: p.confidence, srcName: "Demo PFZ (INCOIS advisory shape)", srcUrl: "https://incois.gov.in/MarineFisheries/PfzAdvisory", mode: "demo" }),
               }}
             />
           ))}
@@ -273,7 +297,7 @@ export default function LeafletBase({
               icon={icons.pfzDot}
               eventHandlers={{
                 click: () =>
-                  onInspect({ kind: "pfz", id: p.id, title: p.id, sub: `${p.distance_km} km ${p.direction} • ${p.productivity} productivity`, lat: `${p.lat!.toFixed(2)}°N`, lng: `${p.lng!.toFixed(2)}°E`, sst: `${p.sst}°C`, chl: `${p.chlorophyll}`, conf: p.confidence }),
+                  onInspect({ kind: "pfz", id: p.id, title: p.id, sub: `${p.distance_km} km ${p.direction} • ${p.productivity} productivity`, lat: `${p.lat!.toFixed(2)}°N`, lng: `${p.lng!.toFixed(2)}°E`, sst: `${p.sst}°C`, chl: `${p.chlorophyll}`, conf: p.confidence, srcName: "Demo PFZ (INCOIS advisory shape)", srcUrl: "https://incois.gov.in/MarineFisheries/PfzAdvisory", mode: "demo" }),
               }}
             >
               <Tooltip permanent direction="bottom" offset={[0, 10]}>
@@ -290,7 +314,7 @@ export default function LeafletBase({
             key={a.id}
             position={[a.lat, a.lng]}
             icon={icons.alert}
-            eventHandlers={{ click: () => onInspect({ kind: "alert", title: a.title, sub: a.sub, alert: true }) }}
+            eventHandlers={{ click: () => onInspect({ kind: "alert", title: a.title, sub: a.sub, alert: true, srcName: "Demo IMD advisory (SACHET shape pending)", srcUrl: "https://sachet.ndma.gov.in", mode: "demo" }) }}
           />
         ))}
 
@@ -304,7 +328,12 @@ export default function LeafletBase({
 
       {layers.ports &&
         ports.map(p => (
-          <Marker key={`${p.name}-${p.lat}`} position={[p.lat, p.lng]} icon={icons.port}>
+          <Marker
+            key={`${p.name}-${p.lat}`}
+            position={[p.lat, p.lng]}
+            icon={icons.port}
+            eventHandlers={{ click: () => onInspect({ kind: "port", title: p.name, sub: `${p.lat.toFixed(2)}°N ${p.lng.toFixed(2)}°E`, srcName: "OpenStreetMap seamarks (live) / curated fallback", srcUrl: "https://www.openstreetmap.org", mode: "live" }) }}
+          >
             <Tooltip direction="top" offset={[0, -10]}>
               <span style={{ fontSize: 11 }}>⚓ {p.name}</span>
             </Tooltip>
@@ -316,8 +345,8 @@ export default function LeafletBase({
           <Polygon
             key={z.name}
             positions={z.polygon}
-            pathOptions={{ color: "#FF6B6B", weight: 1.6, dashArray: "5 3", fillColor: "#FF6B6B", fillOpacity: 0.12 }}
-            eventHandlers={{ click: () => onInspect({ kind: "restricted", title: z.name, sub: z.note }) }}
+            pathOptions={{ color: "#FF6B6B", weight: 1.6, dashArray: "5 3", fillColor: "#FF6B6B", fillOpacity: 0.12 * overlayOpacity }}
+            eventHandlers={{ click: () => onInspect({ kind: "restricted", title: z.name, sub: z.note, srcName: "Curated MPA boxes (WDPA shape pending)", srcUrl: "https://www.protectedplanet.net", mode: "demo" }) }}
           >
             <Tooltip direction="top" sticky>
               <span style={{ fontSize: 11 }}>⛔ {z.name}</span>
