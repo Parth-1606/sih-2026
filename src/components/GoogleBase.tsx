@@ -2,6 +2,7 @@
 import { useCallback, useState } from "react";
 import { GoogleMap, Marker, Polygon, useJsApiLoader } from "@react-google-maps/api";
 import { pfzData, userLocation } from "@/lib/mock";
+import { CURATED_MPAS } from "@/lib/marine-zones";
 import type { LayerId, MapCenter } from "./LeafletBase";
 
 const containerStyle = { width: "100%", height: "100%" };
@@ -56,6 +57,7 @@ export default function GoogleBase({
   onMove,
   onReady,
   onInspect,
+  ports,
 }: {
   apiKey: string;
   layers: Record<LayerId, boolean>;
@@ -65,6 +67,7 @@ export default function GoogleBase({
   onReady: (map: any) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onInspect: (data: any) => void;
+  ports: { name: string; lat: number; lng: number }[];
 }) {
   const { isLoaded, loadError } = useJsApiLoader({ id: "marine-google-map", googleMapsApiKey: apiKey });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -191,6 +194,21 @@ export default function GoogleBase({
           label={{ text: `You • ${userLocation.latitude.toFixed(2)}°N ${userLocation.longitude.toFixed(2)}°E`, color: "#fff", fontSize: "11px" }}
         />
       )}
+
+      {layers.restricted &&
+        CURATED_MPAS.map(z => (
+          <Polygon
+            key={z.name}
+            paths={z.polygon.map(([lat, lng]) => ({ lat, lng }))}
+            options={{ strokeColor: "#FF6B6B", strokeWeight: 2, fillColor: "#FF6B6B", fillOpacity: 0.15 }}
+            onClick={() => onInspect({ kind: "restricted", title: z.name, sub: z.note })}
+          />
+        ))}
+
+      {layers.ports &&
+        ports.map(p => (
+          <Marker key={`${p.name}-${p.lat}`} position={{ lat: p.lat, lng: p.lng }} title={`⚓ ${p.name}`} />
+        ))}
     </GoogleMap>
   );
 }

@@ -16,6 +16,8 @@
 # next.js
 /.next/
 /out/
+# local ingestion cache (demo stand-in for PostGIS/MinIO)
+/.data/
 
 # production
 /build

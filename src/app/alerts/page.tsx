@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { alerts as mockAlerts } from "@/lib/mock";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,17 @@ export default function AlertsPage() {
   const [filter, setFilter] = useState<F>("all");
   const [read, setRead] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<string | null>(null);
+  const [incois, setIncois] = useState<{ forecastDate: string | null; validUpto: string | null; links: Record<string, string> } | null>(null);
+
+  // Live INCOIS PFZ advisory validity (PDF §2.1) — per-sector text stays on incois.gov.in.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/advisories/incois")
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => { if (!cancelled && j?.forecastDate) setIncois(j); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
   const filtered = mockAlerts.filter(a => filter === "all" ? true : a.type === filter);
   const critical = mockAlerts.filter(a => a.severity === "danger").length;
   const warning = mockAlerts.filter(a => a.severity === "warning").length;
@@ -41,6 +52,23 @@ export default function AlertsPage() {
           <Button key={f} variant={filter === f ? "default" : "outline"} size="sm" className="rounded-full capitalize whitespace-nowrap" onClick={() => setFilter(f)}>{f.replace("_", " ")}</Button>
         ))}
       </div>
+
+      <Card className="mt-4 p-4 border-[#35C98A]/20 bg-[#35C98A]/5">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className={`size-2 rounded-full ${incois ? "bg-[#35C98A] animate-pulse" : "bg-muted-foreground"}`} />
+          <span className="font-medium">INCOIS PFZ Advisory</span>
+          <span className="text-muted-foreground text-xs">
+            {incois ? `LIVE — forecast ${incois.forecastDate}, valid to ${incois.validUpto}` : "connecting to incois.gov.in…"}
+          </span>
+          {incois && (
+            <span className="ml-auto flex gap-2">
+              <a href={incois.links.pfzAdvisory} target="_blank" rel="noreferrer" className="text-xs underline">Advisory</a>
+              <a href={incois.links.pfzWebGis} target="_blank" rel="noreferrer" className="text-xs underline">WebGIS (1,223 nodes)</a>
+              <a href={incois.links.oceanStateForecast} target="_blank" rel="noreferrer" className="text-xs underline">Ocean State Forecast</a>
+            </span>
+          )}
+        </div>
+      </Card>
 
       {filtered.length === 0 ? (
         <Card className="mt-8 p-12 text-center"><CardContent>No marine information is available for this area.</CardContent></Card>

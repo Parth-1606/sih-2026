@@ -13,8 +13,9 @@ import {
   useMap,
 } from "react-leaflet";
 import { pfzData, userLocation } from "@/lib/mock";
+import { CURATED_MPAS } from "@/lib/marine-zones";
 
-export type LayerId = "pfz" | "sst" | "chlorophyll" | "weather" | "waves" | "geofences" | "alerts";
+export type LayerId = "pfz" | "sst" | "chlorophyll" | "weather" | "waves" | "geofences" | "alerts" | "ports" | "restricted";
 export type StyleMode = "ocean" | "streets" | "voyager" | "dark" | "satellite" | "google";
 
 const TILES: Record<StyleMode, { url: string; attribution: string }> = {
@@ -120,6 +121,7 @@ export default function LeafletBase({
   onMove,
   onReady,
   onInspect,
+  ports,
 }: {
   styleMode: StyleMode;
   layers: Record<LayerId, boolean>;
@@ -128,6 +130,7 @@ export default function LeafletBase({
   onReady: (map: L.Map) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onInspect: (data: any) => void;
+  ports: { name: string; lat: number; lng: number }[];
 }) {
   const icons = useMemo(() => {
     const user = L.divIcon({
@@ -151,7 +154,13 @@ export default function LeafletBase({
       iconSize: [8, 8],
       iconAnchor: [4, 4],
     });
-    return { user, alert, pfzDot };
+    const port = L.divIcon({
+      className: "",
+      html: `<div style="width:20px;height:20px;background:rgba(7,16,20,0.85);border:1px solid rgba(255,255,255,0.4);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px">⚓</div>`,
+      iconSize: [20, 20],
+      iconAnchor: [10, 10],
+    });
+    return { user, alert, pfzDot, port };
   }, []);
 
   return (
@@ -244,6 +253,29 @@ export default function LeafletBase({
           </span>
         </Tooltip>
       </Marker>
+
+      {layers.ports &&
+        ports.map(p => (
+          <Marker key={`${p.name}-${p.lat}`} position={[p.lat, p.lng]} icon={icons.port}>
+            <Tooltip direction="top" offset={[0, -10]}>
+              <span style={{ fontSize: 11 }}>⚓ {p.name}</span>
+            </Tooltip>
+          </Marker>
+        ))}
+
+      {layers.restricted &&
+        CURATED_MPAS.map(z => (
+          <Polygon
+            key={z.name}
+            positions={z.polygon}
+            pathOptions={{ color: "#FF6B6B", weight: 1.6, dashArray: "5 3", fillColor: "#FF6B6B", fillOpacity: 0.12 }}
+            eventHandlers={{ click: () => onInspect({ kind: "restricted", title: z.name, sub: z.note }) }}
+          >
+            <Tooltip direction="top" sticky>
+              <span style={{ fontSize: 11 }}>⛔ {z.name}</span>
+            </Tooltip>
+          </Polygon>
+        ))}
     </MapContainer>
   );
 }
