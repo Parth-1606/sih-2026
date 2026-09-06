@@ -21,7 +21,9 @@ export async function GET(req: NextRequest) {
       if (!res.ok) throw new Error(`ERDDAP HTTP ${res.status}`);
       const j = await res.json();
       const row = j.table.rows[0];
-      const c = row[3] != null ? Math.round((row[3] - 273.15) * 10) / 10 : null;
+      // MUR analysed_sst arrives in °C on this endpoint — only convert if Kelvin.
+      const raw = row[3] as number | null;
+      const c = raw != null ? Math.round(((raw > 100 ? raw - 273.15 : raw)) * 10) / 10 : null;
       return { sstC: c, time: row[0], source: "JPL MUR SST via NOAA CoastWatch ERDDAP (jplMURSST41)" };
     });
     return NextResponse.json({ ...data, cached });
