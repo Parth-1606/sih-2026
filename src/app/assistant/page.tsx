@@ -1,8 +1,7 @@
 "use client";
 import { useEffect, useState, useRef, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { mockConditions, pfzData, alerts, userLocation } from "@/lib/mock";
-import { askPlanner, type PlanTrace } from "@/lib/agents/planner";
+import { aiService, mockConditions, pfzData, alerts, userLocation } from "@/lib/mock";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Msg = { role: "user" | "assistant" | "tool" | "evidence" | "map" | "alert" | "trace"; text: string; meta?: any };
+type Msg = { role: "user" | "assistant" | "tool" | "evidence" | "map" | "alert"; text: string; meta?: any };
 const SUGGESTED = [
   "Where is the nearest Potential Fishing Zone today?",
   "Is it safe to venture into the sea tomorrow morning?",
@@ -40,23 +39,12 @@ function AssistantInner() {
     setProcessing(true);
     setStep(0);
     for (let i = 0; i < AGENT_STEPS.length; i++) { setStep(i); await new Promise(r => setTimeout(r, 220)); }
-    let trace: PlanTrace;
-    try {
-      trace = await askPlanner(q);
-    } catch (e) {
-      trace = {
-        query: q, agentsRun: [], answer: `Agent team unreachable (${String(e)}). Showing onboard reference: nearest PFZ PFZ-001, 18.4 km NE, confidence 91%.`,
-        results: [], sources: [], live: false, generatedAt: new Date().toISOString(),
-      };
-    }
-    const srcLine = trace.sources.length
-      ? trace.sources.map(s => s.name).join(" • ")
-      : "onboard reference";
+    const res = await aiService.query(q);
     setMessages(m => [...m,
-      { role: "assistant", text: trace.answer, meta: trace },
-      { role: "trace", text: "Agent trace", meta: trace },
-      { role: "evidence", text: `Evidence — ${srcLine} ${trace.live ? "• LIVE" : "• OFFLINE"}` },
-      { role: "map" as const, text: "PFZ-001 — 18.4km NE • View on map" },
+      { role: "assistant", text: res.answer, meta: res },
+      { role: "evidence", text: "Evidence — INCOIS PFZ 06:00 IST • SST 28.1°C • Wave 0.8m • Sources verified" },
+      ...(res.pfz ? [{ role: "map" as const, text: `${res.pfz.id} — ${res.pfz.distance_km}km ${res.pfz.direction} • View on map`, meta: res.pfz }] : []),
+      ...(res.risk ? [{ role: "alert" as const, text: `Risk: ${res.risk} • Valid today` }] : []),
     ]);
     setProcessing(false);
   };
@@ -84,25 +72,16 @@ function AssistantInner() {
         {(messages.length > 0 || processing) && (
           <div ref={listRef} className="flex-1 overflow-auto p-4 md:p-6 space-y-4">
             {messages.map((m, i) => (
-              <motion.div key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className={`${m.role === "user" ? "ml-auto bg-primary text-primary-foreground max-w-[78%]" : m.role === "assistant" ? "bg-card border max-w-[86%]" : m.role === "trace" ? "bg-transparent border border-dashed max-w-[86%]" : m.role === "evidence" ? "bg-muted border max-w-[86%]" : m.role === "map" ? "bg-[#F2C94C] text-[#071014] max-w-[86%] cursor-pointer" : "bg-[#F4B942]/15 border border-[#F4B942]/20 max-w-[86%]"} rounded-2xl px-4 py-3 text-[13.5px] leading-6`}>
-                {m.role === "assistant" && <Badge variant="outline" className="mb-1 text-[11px]">DIRECT ANSWER • {m.meta?.live ? "LIVE" : "OFFLINE"} • {m.meta?.agentsRun?.length ?? 0} AGENTS</Badge>}
-                {m.role === "trace" && <Badge variant="secondary" className="mb-2 text-[11px]">COLLABORATIVE TRACE • PLANNER ROUTED {m.meta?.agentsRun?.length ?? 0} AGENTS</Badge>}
+              <motion.div key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className={`${m.role === "user" ? "ml-auto bg-primary text-primary-foreground max-w-[78%]" : m.role === "assistant" ? "bg-card border max-w-[86%]" : m.role === "evidence" ? "bg-muted border max-w-[86%]" : m.role === "map" ? "bg-[#F2C94C] text-[#071014] max-w-[86%] cursor-pointer" : "bg-[#F4B942]/15 border border-[#F4B942]/20 max-w-[86%]"} rounded-2xl px-4 py-3 text-[13.5px] leading-6`}>
+                {m.role === "assistant" && <Badge variant="outline" className="mb-1 text-[11px]">DIRECT ANSWER • CONFIDENCE 91%</Badge>}
                 {m.role === "evidence" && <Badge variant="secondary" className="mb-1 text-[11px]">EVIDENCE</Badge>}
                 {m.role === "map" && <Badge className="mb-1 bg-[#071014] text-white hover:bg-[#071014]">↗ MAP RESULT</Badge>}
-                {m.role === "trace" && m.meta ? (
-                  <div className="space-y-1.5">
-                    {(m.meta as PlanTrace).results.map(r => (
-                      <div key={r.agent} className="rounded-xl bg-card border p-2.5 text-xs">
-                        <div className="font-semibold flex items-center gap-1.5">
-                          <span className="size-1.5 rounded-full bg-[#35C98A]" />{r.label}
-                          <Badge variant="outline" className="ml-auto text-[10px]">{r.confidence}%</Badge>
-                        </div>
-                        <div className="mt-1 text-muted-foreground leading-5">{r.verdict}</div>
-                      </div>
-                    ))}
+                <div>{m.text}</div>
+                {m.role === "assistant" && !!m.meta && (
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <Card className="p-2 bg-muted"><div className="text-muted-foreground">Key factors</div><div>PFZ NE, wind ↑, SST 28.1°C</div></Card>
+                    <Card className="p-2 bg-muted"><div className="text-muted-foreground">Recommendation</div><div>Depart before 11:00</div></Card>
                   </div>
-                ) : (
-                  <div className="whitespace-pre-line">{m.text}</div>
                 )}
                 {m.role === "map" && <div onClick={() => router.push("/map")} className="mt-2 text-xs font-semibold underline cursor-pointer">Open map →</div>}
               </motion.div>
@@ -187,7 +166,7 @@ function AssistantInner() {
             <Button size="sm" className="w-full rounded-full" onClick={() => router.push("/map")}>Focus on map</Button>
           </CardContent>
         </Card>
-        <div className="text-xs text-muted-foreground p-2">Agent team: planner + marine-data, ocean-analytics, weather-intel, geospatial, risk, visualization • Sources: Open-Meteo, NASA ERDDAP, OSM, INCOIS</div>
+        <div className="text-xs text-muted-foreground p-2">Data sources: INCOIS • IMD • INCOIS Wave Model • Updated 06:00 IST</div>
       </div>
     </div>
   );

@@ -13,9 +13,8 @@ import {
   useMap,
 } from "react-leaflet";
 import { pfzData, userLocation } from "@/lib/mock";
-import { CURATED_MPAS } from "@/lib/marine-zones";
 
-export type LayerId = "pfz" | "sst" | "chlorophyll" | "weather" | "waves" | "geofences" | "alerts" | "ports" | "restricted";
+export type LayerId = "pfz" | "sst" | "chlorophyll" | "weather" | "waves" | "geofences" | "alerts";
 export type StyleMode = "ocean" | "streets" | "voyager" | "dark" | "satellite" | "google";
 
 const TILES: Record<StyleMode, { url: string; attribution: string }> = {
@@ -90,20 +89,6 @@ function pfzPolygon(lat: number, lng: number): L.LatLngExpression[] {
 
 export type MapCenter = { lat: number; lng: number };
 
-export interface DrawnRoute {
-  coords: [number, number][];
-  color: string;
-  dash?: boolean;
-}
-
-export interface FitBox {
-  s: number;
-  w: number;
-  n: number;
-  e: number;
-  nonce: number;
-}
-
 function MapEvents({ onMove }: { onMove: (zoom: number, center: MapCenter) => void }) {
   const map = useMap();
   useEffect(() => {
@@ -128,14 +113,16 @@ function MapReady({ onReady }: { onReady: (map: L.Map) => void }) {
   return null;
 }
 
-function FitBounds({ box }: { box: FitBox | null | undefined }) {
-  const map = useMap();
-  useEffect(() => {
-    if (!box) return;
-    map.fitBounds([[box.s, box.w], [box.n, box.e]], { padding: [24, 24] });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [box?.nonce]);
-  return null;
+export interface AnomalyMarkerData {
+  id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  parameter: string;
+  value: number;
+  unit: string;
+  severity: string;
+  z_score?: number | null;
 }
 
 export default function LeafletBase({
@@ -145,10 +132,9 @@ export default function LeafletBase({
   onMove,
   onReady,
   onInspect,
-  ports,
-  route,
-  routeAlt,
-  fit,
+  anomalies,
+  selectedAnomalyId,
+  onSelectAnomaly,
 }: {
   styleMode: StyleMode;
   layers: Record<LayerId, boolean>;
@@ -157,10 +143,9 @@ export default function LeafletBase({
   onReady: (map: L.Map) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onInspect: (data: any) => void;
-  ports: { name: string; lat: number; lng: number }[];
-  route?: DrawnRoute | null;
-  routeAlt?: DrawnRoute | null;
-  fit?: FitBox | null;
+  anomalies?: AnomalyMarkerData[];
+  selectedAnomalyId?: string | null;
+  onSelectAnomaly?: (id: string) => void;
 }) {
   const icons = useMemo(() => {
     const user = L.divIcon({
@@ -184,19 +169,22 @@ export default function LeafletBase({
       iconSize: [8, 8],
       iconAnchor: [4, 4],
     });
-    const port = L.divIcon({
+    const anomalyPin = L.divIcon({
       className: "",
-      html: `<div style="width:20px;height:20px;background:rgba(7,16,20,0.85);border:1px solid rgba(255,255,255,0.4);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px">⚓</div>`,
-      iconSize: [20, 20],
-      iconAnchor: [10, 10],
+      html: `<div style="position:relative;width:30px;height:30px">
+        <div style="position:absolute;inset:0;background:rgba(239,68,68,0.45);border-radius:9999px;animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite"></div>
+        <div style="position:absolute;left:7px;top:7px;width:16px;height:16px;background:#EF4444;border:2.5px solid #fff;border-radius:9999px;box-shadow:0 0 14px rgba(239,68,68,0.9)"></div>
+      </div>`,
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
     });
-    return { user, alert, pfzDot, port };
+    return { user, alert, pfzDot, anomalyPin };
   }, []);
 
   return (
     <MapContainer
-      center={[18.55, 74.0]}
-      zoom={9}
+      center={[18.70, 72.55]}
+      zoom={8.5}
       scrollWheelZoom={interactive}
       dragging={interactive}
       zoomControl={false}
@@ -209,27 +197,53 @@ export default function LeafletBase({
       )}
       <MapEvents onMove={onMove} />
       <MapReady onReady={onReady} />
-      <FitBounds box={fit} />
 
-      {routeAlt && routeAlt.coords.length > 1 && (
-        <Polyline
-          positions={routeAlt.coords}
-          pathOptions={{ color: routeAlt.color, weight: 3, opacity: 0.85, dashArray: "8 7" }}
-        />
-      )}
-      {route && route.coords.length > 1 && (
-        <>
-          <Polyline
-            positions={route.coords}
-            pathOptions={{ color: route.color, weight: 4.5, opacity: 0.95 }}
-          />
-          <Circle center={route.coords[0]} radius={600} pathOptions={{ color: route.color, weight: 0, fillColor: "#35C98A", fillOpacity: 1 }} />
-          <Circle center={route.coords[route.coords.length - 1]} radius={600} pathOptions={{ color: route.color, weight: 0, fillColor: "#F4B942", fillOpacity: 1 }} />
-        </>
-      )}
+      {/* Real ORCA Anomalous Buoy Stations */}
+      {anomalies &&
+        anomalies.map(a => (
+          <Marker
+            key={`anomaly-${a.id}`}
+            position={[a.lat, a.lon]}
+            icon={icons.anomalyPin}
+            eventHandlers={{
+              click: () => {
+                onSelectAnomaly?.(a.id);
+                onInspect({
+                  kind: "anomaly",
+                  id: a.id,
+                  title: a.name,
+                  sub: `${a.parameter.replace(/_/g, " ")}: ${a.value}${a.unit} (${a.severity.toUpperCase()})`,
+                  lat: `${a.lat.toFixed(2)}°N`,
+                  lng: `${a.lon.toFixed(2)}°E`,
+                  sst: `${a.value}${a.unit}`,
+                  conf: a.z_score ? `${a.z_score.toFixed(1)}σ` : undefined,
+                  alert: true,
+                });
+              },
+            }}
+          >
+            <Tooltip permanent direction="top" offset={[0, -14]}>
+              <span
+                style={{
+                  background: selectedAnomalyId === a.id ? "#EF4444" : "#071014",
+                  color: "#fff",
+                  padding: "3px 8px",
+                  borderRadius: 9999,
+                  fontWeight: 700,
+                  fontSize: 11,
+                  border: "1px solid rgba(239,68,68,0.7)",
+                  boxShadow: "0 0 10px rgba(0,0,0,0.6)",
+                }}
+              >
+                ⚠️ {a.name} • {a.value}{a.unit} ({a.severity.toUpperCase()})
+              </span>
+            </Tooltip>
+          </Marker>
+        ))}
 
       {layers.sst && (
         <>
+          <Circle center={[18.70, 72.40]} radius={20000} pathOptions={{ color: "#EF4444", weight: 1, fillColor: "#EF4444", fillOpacity: 0.22 }} />
           <Circle center={[18.62, 73.98]} radius={14000} pathOptions={{ color: "#2E9CFF", weight: 0, fillColor: "#2E9CFF", fillOpacity: 0.28 }} />
           <Circle center={[18.45, 74.2]} radius={10000} pathOptions={{ color: "#2E9CFF", weight: 0, fillColor: "#2E9CFF", fillOpacity: 0.18 }} />
         </>
@@ -297,33 +311,10 @@ export default function LeafletBase({
       <Marker position={[userLocation.latitude, userLocation.longitude]} icon={icons.user}>
         <Tooltip permanent direction="bottom" offset={[0, 12]}>
           <span style={{ background: "rgba(7,16,20,0.85)", color: "#fff", padding: "2px 8px", borderRadius: 9999, fontSize: 11 }}>
-            You • {userLocation.latitude.toFixed(2)}°N {userLocation.longitude.toFixed(2)}°E
+            Base • {userLocation.latitude.toFixed(2)}°N {userLocation.longitude.toFixed(2)}°E
           </span>
         </Tooltip>
       </Marker>
-
-      {layers.ports &&
-        ports.map(p => (
-          <Marker key={`${p.name}-${p.lat}`} position={[p.lat, p.lng]} icon={icons.port}>
-            <Tooltip direction="top" offset={[0, -10]}>
-              <span style={{ fontSize: 11 }}>⚓ {p.name}</span>
-            </Tooltip>
-          </Marker>
-        ))}
-
-      {layers.restricted &&
-        CURATED_MPAS.map(z => (
-          <Polygon
-            key={z.name}
-            positions={z.polygon}
-            pathOptions={{ color: "#FF6B6B", weight: 1.6, dashArray: "5 3", fillColor: "#FF6B6B", fillOpacity: 0.12 }}
-            eventHandlers={{ click: () => onInspect({ kind: "restricted", title: z.name, sub: z.note }) }}
-          >
-            <Tooltip direction="top" sticky>
-              <span style={{ fontSize: 11 }}>⛔ {z.name}</span>
-            </Tooltip>
-          </Polygon>
-        ))}
     </MapContainer>
   );
 }

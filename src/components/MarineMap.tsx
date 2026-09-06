@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { userLocation } from "@/lib/mock";
-import type { DrawnRoute, FitBox, LayerId, MapCenter, StyleMode } from "./LeafletBase";
+import type { AnomalyMarkerData, LayerId, MapCenter, StyleMode } from "./LeafletBase";
 
 // Client-only: Leaflet/Google touch `window` at import time, so never SSR them.
 const LeafletBase = dynamic(() => import("./LeafletBase"), {
@@ -32,15 +32,13 @@ const GoogleBase = dynamic<any>(() => import("./GoogleBase"), {
 });
 
 export const LAYERS: { id: LayerId; label: string; defaultOn: boolean }[] = [
-  { id: "pfz", label: "Potential Fishing Zones", defaultOn: true },
-  { id: "sst", label: "Sea Surface Temperature", defaultOn: false },
-  { id: "chlorophyll", label: "Chlorophyll", defaultOn: false },
+  { id: "pfz", label: "Potential Fishing Zones", defaultOn: false },
+  { id: "sst", label: "Sea Surface Temperature", defaultOn: true },
+  { id: "chlorophyll", label: "Chlorophyll", defaultOn: true },
   { id: "weather", label: "Weather", defaultOn: false },
   { id: "waves", label: "Wave Conditions", defaultOn: false },
-  { id: "geofences", label: "Geofences", defaultOn: true },
+  { id: "geofences", label: "Geofences", defaultOn: false },
   { id: "alerts", label: "Marine Alerts", defaultOn: true },
-  { id: "ports", label: "Ports & Harbours (OSM)", defaultOn: false },
-  { id: "restricted", label: "Restricted Zones (MPA)", defaultOn: true },
 ];
 
 export default function MarineMap({
@@ -49,9 +47,9 @@ export default function MarineMap({
   onSelectPFZ,
   onSelectFeature,
   focus,
-  route,
-  routeAlt,
-  fit,
+  anomalies,
+  selectedAnomalyId,
+  onSelectAnomaly,
 }: {
   height?: number | string;
   interactive?: boolean;
@@ -59,9 +57,9 @@ export default function MarineMap({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onSelectFeature?: (f: any) => void;
   focus?: { lat: number; lng: number; nonce: number } | null;
-  route?: DrawnRoute | null;
-  routeAlt?: DrawnRoute | null;
-  fit?: FitBox | null;
+  anomalies?: AnomalyMarkerData[];
+  selectedAnomalyId?: string | null;
+  onSelectAnomaly?: (id: string) => void;
 }) {
   const router = useRouter();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -73,20 +71,9 @@ export default function MarineMap({
   const [measure, setMeasure] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [inspector, setInspector] = useState<any>(null);
-  const [ports, setPorts] = useState<{ name: string; lat: number; lng: number }[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null);
   const googleKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
-
-  // OSM ports layer (live Overpass via API route, curated fallback inside).
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/geo/ports?s=15.5&w=72&n=20&e=74.5")
-      .then(r => (r.ok ? r.json() : { ports: [] }))
-      .then(j => { if (!cancelled && j.ports) setPorts(j.ports); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
 
   const handleMove = useCallback((z: number, c: MapCenter) => {
     setZoom(z);
@@ -104,21 +91,6 @@ export default function MarineMap({
     if (data?.kind === "pfz" && data?.id) {
       onSelectPFZ?.(data.id);
       onSelectFeature?.({ id: data.id });
-      // Enrich with satellite chlorophyll (MODIS-Aqua via our API route).
-      const m = String(data.lat ?? "").match(/([\d.]+)/);
-      const n = String(data.lng ?? "").match(/([\d.]+)/);
-      if (m && n) {
-        fetch(`/api/ocean/chlorophyll?lat=${m[1]}&lng=${n[1]}`)
-          .then(r => (r.ok ? r.json() : null))
-          .then(j => {
-            if (j?.meanChl != null) {
-              setInspector((prev: unknown) =>
-                prev && typeof prev === "object" ? { ...(prev as object), chlSat: `${j.meanChl} mg/m³ (21-day mean)` } : prev
-              );
-            }
-          })
-          .catch(() => {});
-      }
     }
   }, [onSelectPFZ, onSelectFeature]);
 
@@ -173,10 +145,6 @@ export default function MarineMap({
             onMove={handleMove}
             onReady={handleReady}
             onInspect={handleInspect}
-            ports={ports}
-            route={route}
-            routeAlt={routeAlt}
-            fit={fit}
           />
         ) : (
           <div className="absolute inset-0 z-0 flex items-center justify-center bg-[#0A2733] p-6">
@@ -201,10 +169,9 @@ export default function MarineMap({
           onMove={handleMove}
           onReady={handleReady}
           onInspect={handleInspect}
-          ports={ports}
-          route={route}
-          routeAlt={routeAlt}
-          fit={fit}
+          anomalies={anomalies}
+          selectedAnomalyId={selectedAnomalyId}
+          onSelectAnomaly={onSelectAnomaly}
         />
       )}
 
@@ -276,9 +243,6 @@ export default function MarineMap({
                   {inspector.lat && <div className="bg-muted border rounded-xl p-2"><div className="text-muted-foreground text-[11px]">Coordinates</div><div className="font-mono font-medium">{inspector.lat}, {inspector.lng}</div></div>}
                   {inspector.sst && <div className="bg-muted border rounded-xl p-2"><div className="text-muted-foreground text-[11px]">SST • Chlorophyll</div><div className="font-medium">{inspector.sst} • {inspector.chl} mg/m³</div></div>}
                 </div>
-              )}
-              {inspector.chlSat && (
-                <div className="text-xs bg-muted border rounded-xl p-2"><span className="text-muted-foreground">🛰 MODIS-Aqua: </span><span className="font-medium">{inspector.chlSat}</span></div>
               )}
               <div className="flex gap-2">
                 <Button size="sm" className="flex-1">View on map</Button>

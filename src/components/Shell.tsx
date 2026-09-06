@@ -12,13 +12,16 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
+import { fetchBackendHealth, ORCA_API_URL, type HealthResponse } from "@/lib/orca-api";
+
 const NAV = [
-  { id: "overview", label: "Overview", href: "/", icon: GridIcon },
-  { id: "marine_map", label: "Marine Map", href: "/map", icon: MapIcon },
-  { id: "assistant", label: "AI Assistant", href: "/assistant", icon: SparkleIcon },
-  { id: "alerts", label: "Alerts", href: "/alerts", icon: BellIcon },
+  { id: "overview", label: "ORCA Reasoning", href: "/", icon: GridIcon },
+  { id: "marine_map", label: "Ocean Map", href: "/map", icon: MapIcon },
+  { id: "assistant", label: "Agent Assistant", href: "/assistant", icon: SparkleIcon },
+  { id: "alerts", label: "Anomalies & Alerts", href: "/alerts", icon: BellIcon },
   { id: "routes", label: "Route Planner", href: "/routes", icon: RouteIcon },
-  { id: "analytics", label: "Analytics", href: "/analytics", icon: ChartIcon },
+  { id: "analytics", label: "Ocean Analytics", href: "/analytics", icon: ChartIcon },
+  { id: "system-status", label: "System Health", href: "/system-status", icon: SettingsIcon },
 ];
 const BOTTOM = [
   { id: "settings", label: "Settings", icon: SettingsIcon },
@@ -33,7 +36,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [showSearch, setShowSearch] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
   const [showLocation, setShowLocation] = useState(false);
-  const [dataState, setDataState] = useState<"LIVE" | "SYNCING" | "OFFLINE">("LIVE");
+  const [backendHealth, setBackendHealth] = useState<HealthResponse | null>(null);
+
+  useEffect(() => {
+    fetchBackendHealth()
+      .then(setBackendHealth)
+      .catch(() => setBackendHealth(null));
+  }, []);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -42,8 +51,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, []);
-
-
 
   return (
     <div className="min-h-screen bg-background text-foreground flex">
@@ -59,8 +66,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             <div className="size-3 rounded-full bg-[#4BA3FF] shadow-[0_0_12px_rgba(75,163,255,0.6)]" />
           </div>
           <motion.div initial={false} animate={{ opacity: hovered ? 1 : 0, x: hovered ? 0 : -6 }} className="overflow-hidden whitespace-nowrap">
-            {hovered && <div className="text-[13px] font-semibold tracking-[-0.01em] leading-none">MARINE INTELLIGENCE</div>}
-            {hovered && <div className="text-[10px] tracking-[0.12em] text-muted-foreground font-medium">MISSION CONTROL</div>}
+            {hovered && <div className="text-[14px] font-bold tracking-[0.05em] leading-none text-[#4BA3FF]">ORCA</div>}
+            {hovered && <div className="text-[9px] tracking-[0.1em] text-muted-foreground font-semibold mt-1">COLLABORATIVE AGENTS</div>}
           </motion.div>
         </div>
 
@@ -130,18 +137,28 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
           <div className="flex-1 max-w-[640px] relative">
             <Button variant="secondary" className="w-full justify-start gap-3 px-4 py-2.5 rounded-full bg-card border text-muted-foreground hover:bg-card h-10 font-normal" onClick={() => setShowSearch(true)}>
-              <SearchIcon /> <span className="hidden sm:inline text-[13.5px]">Ask about the ocean, weather, PFZs or safety…</span><span className="sm:hidden">Ask about ocean…</span>
+              <SearchIcon /> <span className="hidden sm:inline text-[13.5px]">Search marine anomalies, buoy stations, or agent consensus…</span><span className="sm:hidden">Search ORCA…</span>
               <Badge variant="default" className="ml-auto hidden sm:flex text-[11px] px-1.5 py-0.5">⌘K</Badge>
             </Button>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
             <Badge
-              variant={dataState === "LIVE" ? "default" : dataState === "SYNCING" ? "secondary" : "outline"}
-              className={`hidden sm:flex gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold tracking-[0.08em] cursor-pointer ${dataState === "LIVE" ? "bg-[#35C98A]/15 text-[#35C98A] border-[#35C98A]/20 hover:bg-[#35C98A]/20" : dataState === "SYNCING" ? "bg-[#F4B942]/15 text-[#F4B942] border-[#F4B942]/20" : "bg-muted text-muted-foreground"}`}
-              onClick={() => setDataState(s => s === "LIVE" ? "SYNCING" : s === "SYNCING" ? "OFFLINE" : "LIVE")}
+              variant="outline"
+              className={`hidden sm:flex gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold tracking-[0.08em] cursor-pointer ${
+                backendHealth?.status === "ok"
+                  ? "bg-[#35C98A]/15 text-[#35C98A] border-[#35C98A]/30 hover:bg-[#35C98A]/25"
+                  : "bg-destructive/15 text-destructive border-destructive/30 hover:bg-destructive/25"
+              }`}
+              onClick={() => router.push("/system-status")}
+              title={backendHealth?.status === "ok" ? "FastAPI backend is connected and healthy" : "Cannot reach backend. Click to inspect"}
             >
-              <span className={`size-1.5 rounded-full ${dataState === "LIVE" ? "bg-[#35C98A] animate-pulse" : dataState === "SYNCING" ? "bg-[#F4B942] animate-pulse" : "bg-white/40"}`} /> {dataState}
+              <span
+                className={`size-1.5 rounded-full ${
+                  backendHealth?.status === "ok" ? "bg-[#35C98A] animate-pulse" : "bg-destructive"
+                }`}
+              />
+              {backendHealth?.status === "ok" ? "SYSTEM ONLINE" : "BACKEND OFFLINE"}
             </Badge>
             <Button variant="secondary" size="icon" className="relative size-9 rounded-full" onClick={() => setShowNotif(true)}>
               <BellIcon /><span className="absolute -top-0.5 -right-0.5 size-2.5 bg-destructive rounded-full border-2 border-background" />
@@ -153,10 +170,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        {dataState === "OFFLINE" && (
+        {backendHealth === null && (
           <div className="px-4 md:px-6 py-2 bg-[#F4B942]/10 border-b border-[#F4B942]/20 text-[12px] text-[#F4B942] flex items-center gap-2">
-            <span className="size-1.5 bg-[#F4B942] rounded-full animate-pulse" /> Offline mode — showing latest available marine data.
-            <Button variant="link" size="xs" onClick={() => setDataState("LIVE")} className="ml-auto text-[#F4B942] underline h-auto p-0">Retry</Button>
+            <span className="size-1.5 bg-[#F4B942] rounded-full animate-pulse" /> Offline mode — FastAPI backend at {ORCA_API_URL} unreachable.
+            <Button variant="link" size="xs" onClick={() => fetchBackendHealth().then(setBackendHealth).catch(() => setBackendHealth(null))} className="ml-auto text-[#F4B942] underline h-auto p-0">Retry</Button>
           </div>
         )}
 
