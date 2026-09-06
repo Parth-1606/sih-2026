@@ -1,0 +1,442 @@
+{
+  "name": "web-design-resource-design-spec",
+  "version": "1.0.0",
+  "purpose": "Persistent design-resource catalog for AI-assisted website projects. Add this file to each project so the coding agent can consult the approved visual, UI, animation, icon, background, logo, inspiration, and AI-skill resources before implementing or modifying the site.",
+  "usage_rules": {
+    "primary_goal": "Reduce generic AI-generated website slop by giving the coding agent a curated resource vocabulary and explicit usage guidance.",
+    "agent_behavior": [
+      "Consult this catalog before choosing UI components, icons, fonts, animations, backgrounds, or visual effects.",
+      "Prefer resources already listed here over introducing unrelated libraries.",
+      "Do not add a new dependency solely because it can produce a visually flashy effect.",
+      "Use the smallest appropriate resource for the job.",
+      "Preserve the existing project's visual language when making changes.",
+      "Do not blindly combine multiple animation or visual-effect libraries when one is sufficient.",
+      "Avoid unnecessary decorative effects, excessive gradients, excessive motion, and generic SaaS/AI visual patterns unless the project specification explicitly requests them.",
+      "Before adding a dependency, check whether an existing listed resource already solves the requirement.",
+      "Treat links marked as unverified as references that require human confirmation before dependency installation."
+    ],
+    "implementation_priority": [
+      "Existing project design system and components",
+      "Resources explicitly selected by the project",
+      "Resources in this catalog",
+      "New external resources only when necessary and explicitly justified"
+    ]
+  },
+  "design_principles": {
+    "aesthetic": [
+      "Minimal",
+      "Intentional",
+      "Strong typography",
+      "High-quality spacing",
+      "Controlled visual density",
+      "Purposeful motion",
+      "Avoid visual clutter"
+    ],
+    "anti_slop_rules": [
+      "Do not add sections just to make a page longer.",
+      "Do not use effects merely because they are available.",
+      "Do not animate every element.",
+      "Do not mix incompatible visual styles without a reason.",
+      "Do not introduce arbitrary component libraries when an existing project component can be reused.",
+      "Do not replace working implementations unnecessarily."
+    ]
+  },
+  "resource_selection": {
+    "fonts": [
+      "Geist Fonts"
+    ],
+    "components": [
+      "Shadcn / shadcn/ui",
+      "Aceternity UI",
+      "Kokonut UI",
+      "Skiper UI",
+      "Vengence UI",
+      "Watermelon UI",
+      "Motion Primitives",
+      "Unlumen UI",
+      "Magic UI",
+      "SmoothUI",
+      "RetroUI",
+      "21st.dev"
+    ],
+    "icons": [
+      "Huge Icons / Hugeicons",
+      "Key Line Icons",
+      "Morphicons",
+      "The SVG Repo"
+    ],
+    "inspiration": [
+      "Refero Styles",
+      "Motion Sites",
+      "Mobbin",
+      "HorizonX",
+      "OriginKit",
+      "Bklit",
+      "Manus",
+      "Brik",
+      "Jotform"
+    ],
+    "animation": [
+      "Anime.js",
+      "Motion",
+      "AnimMasterLib",
+      "GSAP",
+      "Transition Dev"
+    ],
+    "three_d_and_backgrounds": [
+      "React Three Fiber",
+      "Liquid Glass JS",
+      "Shader Gradient"
+    ],
+    "visual_assets": [
+      "Haikei",
+      "LogoAI",
+      "Liquid Logo"
+    ],
+    "ai_skills": [
+      "TasteSkill",
+      "Obelisk UI / Thesis",
+      "Mlcovaski"
+    ]
+  },
+  "resources": [
+    {
+      "name": "Geist Fonts",
+      "category": "fonts",
+      "description": "Font family / typography resource.",
+      "website": "https://vercel.com/font",
+      "repository": null
+    },
+    {
+      "name": "Shadcn / shadcn/ui",
+      "category": "components",
+      "description": "UI components and design system.",
+      "website": "https://ui.shadcn.com/",
+      "repository": null
+    },
+    {
+      "name": "Aceternity UI",
+      "category": "components",
+      "description": "UI components and animated effects.",
+      "website": "https://ui.aceternity.com/",
+      "repository": null
+    },
+    {
+      "name": "Kokonut UI",
+      "category": "components",
+      "description": "UI component library.",
+      "website": "https://kokonutui.com/",
+      "repository": null
+    },
+    {
+      "name": "Skiper UI",
+      "category": "components",
+      "description": "UI component library.",
+      "website": "https://skiper-ui.com/",
+      "repository": null
+    },
+    {
+      "name": "Vengence UI",
+      "category": "components",
+      "description": "UI component library.",
+      "website": "https://www.vengenceui.com/",
+      "repository": null
+    },
+    {
+      "name": "Watermelon UI",
+      "category": "components",
+      "description": "UI component library.",
+      "website": "https://ui.watermelon.sh/",
+      "repository": null
+    },
+    {
+      "name": "Motion Primitives",
+      "category": "components",
+      "description": "Animated React components / motion primitives.",
+      "website": "https://motion-primitives.com/",
+      "repository": null
+    },
+    {
+      "name": "Unlumen UI",
+      "category": "components",
+      "description": "React UI components.",
+      "website": "https://ui.unlumen.com/",
+      "repository": null
+    },
+    {
+      "name": "Magic UI",
+      "category": "components",
+      "description": "Animated React/Tailwind UI components and effects.",
+      "website": "https://magicui.design/",
+      "repository": null
+    },
+    {
+      "name": "SmoothUI",
+      "category": "components",
+      "description": "UI component resource.",
+      "website": "https://smoothui.dev/",
+      "repository": null
+    },
+    {
+      "name": "RetroUI",
+      "category": "components",
+      "description": "UI component resource.",
+      "website": "https://retroui.io/",
+      "repository": null
+    },
+    {
+      "name": "21st.dev",
+      "category": "components",
+      "description": "UI component and frontend resource.",
+      "website": "https://21st.dev/",
+      "repository": null
+    },
+    {
+      "name": "Huge Icons / Hugeicons",
+      "category": "icons",
+      "description": "Large icon library.",
+      "website": "https://hugeicons.com/",
+      "repository": "https://github.com/hugeicons/hugeicons"
+    },
+    {
+      "name": "Key Line Icons",
+      "category": "icons",
+      "description": "Keyline / stroke icon resource.",
+      "website": "https://keylineicons.com/",
+      "repository": null
+    },
+    {
+      "name": "Morphicons",
+      "category": "icons",
+      "description": "Icon / SVG morphing resource.",
+      "website": "https://www.morphicons.com/",
+      "repository": null
+    },
+    {
+      "name": "The SVG Repo",
+      "category": "icons",
+      "description": "SVG and icon resource.",
+      "website": "https://www.svgrepo.com/",
+      "repository": null
+    },
+    {
+      "name": "Refero Styles",
+      "category": "inspiration",
+      "description": "Design references and UI inspiration.",
+      "website": "https://styles.refero.design/",
+      "repository": null
+    },
+    {
+      "name": "Motion Sites",
+      "category": "inspiration",
+      "description": "Motion-focused website inspiration.",
+      "website": "https://motionsites.ai/",
+      "repository": null
+    },
+    {
+      "name": "Mobbin",
+      "category": "inspiration",
+      "description": "Product and UI design references.",
+      "website": "https://mobbin.com/",
+      "repository": null
+    },
+    {
+      "name": "HorizonX",
+      "category": "inspiration",
+      "description": "Design / website reference resource.",
+      "website": "https://horizonx.so/",
+      "repository": null
+    },
+    {
+      "name": "OriginKit",
+      "category": "inspiration",
+      "description": "Design / website resource.",
+      "website": "https://www.originkit.dev/",
+      "repository": null
+    },
+    {
+      "name": "Bklit",
+      "category": "inspiration",
+      "description": "Design / website reference resource.",
+      "website": "https://bklit.com/",
+      "repository": null
+    },
+    {
+      "name": "Manus",
+      "category": "inspiration",
+      "description": "AI / product website reference.",
+      "website": "https://manus.im/",
+      "repository": null
+    },
+    {
+      "name": "Brik",
+      "category": "inspiration",
+      "description": "Design / website reference resource.",
+      "website": "https://brik.space/",
+      "repository": null
+    },
+    {
+      "name": "Jotform",
+      "category": "inspiration",
+      "description": "Website / product reference.",
+      "website": "https://www.jotform.com/",
+      "repository": null
+    },
+    {
+      "name": "Anime.js",
+      "category": "animation",
+      "description": "JavaScript animation library.",
+      "website": "https://animejs.com/",
+      "repository": null
+    },
+    {
+      "name": "Motion",
+      "category": "animation",
+      "description": "Animation library for the web / React.",
+      "website": "https://motion.dev/",
+      "repository": null
+    },
+    {
+      "name": "AnimMasterLib",
+      "category": "animation",
+      "description": "Animation resource / library.",
+      "website": "https://animmasterlib.dev/",
+      "repository": null
+    },
+    {
+      "name": "GSAP",
+      "category": "animation",
+      "description": "Professional-grade JavaScript animation platform.",
+      "website": "https://gsap.com/",
+      "repository": null
+    },
+    {
+      "name": "Transition Dev",
+      "category": "animation",
+      "description": "Transition / animation resource; user noted it as a skill/repo resource.",
+      "website": null,
+      "repository": "https://github.com/Jakubantalik/transitions.dev",
+      "verification_status": "user-provided / exact repository should be confirmed before installation"
+    },
+    {
+      "name": "React Three Fiber",
+      "category": "3d_backgrounds",
+      "description": "React renderer for Three.js; user specifically noted it for backgrounds and animated components.",
+      "website": "https://docs.pmnd.rs/react-three-fiber/getting-started/introduction",
+      "repository": "https://github.com/pmndrs/react-three-fiber"
+    },
+    {
+      "name": "Liquid Glass JS",
+      "category": "3d_backgrounds",
+      "description": "Liquid-glass / refraction effects. The user noted it as a GitHub repo.",
+      "website": null,
+      "repository": "https://github.com/Amir-Abushanab/liquid-glass-js",
+      "verified_by_web": true
+    },
+    {
+      "name": "Shader Gradient",
+      "category": "3d_backgrounds",
+      "description": "Shader-gradient background resource. The user noted it as a GitHub repo for shader-gradient backgrounds.",
+      "website": null,
+      "repository": "https://github.com/ruucm/shadergradient"
+    },
+    {
+      "name": "Haikei",
+      "category": "visual_assets",
+      "description": "Generative SVG backgrounds and shapes.",
+      "website": "https://haikei.app/",
+      "repository": null
+    },
+    {
+      "name": "LogoAI",
+      "category": "visual_assets",
+      "description": "Logo and design generation resource.",
+      "website": "https://www.logoai.com/",
+      "repository": null
+    },
+    {
+      "name": "Liquid Logo",
+      "category": "visual_assets",
+      "description": "Animated liquid-metal logo tool / GitHub project; user noted it as a GitHub repo for logos.",
+      "website": "https://liquid.paper.design/",
+      "repository": "https://github.com/collidingScopes/liquid-logo",
+      "verified_by_web": true
+    },
+    {
+      "name": "TasteSkill",
+      "category": "ai_skills",
+      "description": "AI skill resource listed in the uploaded document.",
+      "website": "https://www.tasteskill.dev/",
+      "repository": null
+    },
+    {
+      "name": "Obelisk UI / Thesis",
+      "category": "ai_skills",
+      "description": "GitHub repo / skill resource. User specifically noted the Better Interface skill inside this repo.",
+      "website": null,
+      "repository": null,
+      "verification_status": "exact repository not confidently identified; do not guess"
+    },
+    {
+      "name": "Mlcovaski",
+      "category": "ai_skills",
+      "description": "GitHub-based skill / repo resource identified by the user.",
+      "website": null,
+      "repository": null,
+      "verification_status": "exact repository not confidently identified; do not guess"
+    }
+  ],
+  "project_change_protocol": {
+    "instruction": "For future website changes, prefer a small structured change request rather than asking the coding agent to reinterpret the entire design.",
+    "example": {
+      "change_request": {
+        "target": "hero",
+        "priority": "high",
+        "changes": [
+          {
+            "property": "heading_size",
+            "action": "increase",
+            "value": "7rem"
+          },
+          {
+            "property": "hero_spacing",
+            "action": "increase",
+            "value": "128px"
+          },
+          {
+            "property": "animation",
+            "action": "reduce",
+            "reason": "Current motion feels excessive"
+          }
+        ],
+        "preserve": [
+          "Typography family",
+          "Color system",
+          "Responsive layout",
+          "Existing component structure"
+        ]
+      }
+    }
+  },
+  "agent_output_contract": {
+    "preferred_format_for_configuration": "JSON",
+    "preferred_format_for_human_reasoning": "Markdown",
+    "preferred_format_for_implementation": "Project source code",
+    "preferred_format_for_visual_verification": "Browser/screenshot review",
+    "rule": "Use JSON for machine-readable design tokens, resource selection, component specifications, and change requests; use prose/Markdown for nuanced visual reasoning."
+  },
+  "source_notes": {
+    "uploaded_document": "Web Design, UI & Animation Resource Library",
+    "document_total": 28,
+    "document_ai_skills": 1,
+    "document_sections": [
+      "Design Inspiration & Reference",
+      "UI Component Libraries & Design Systems",
+      "Animation & Motion",
+      "Visual Assets & Generative Design",
+      "AI Skills"
+    ],
+    "user_instruction": "Any named item provided without a description should be treated as a website.",
+    "important": "This catalog consolidates the user's original resource list with the resources in the uploaded document. It does not imply that every resource should be used on every project."
+  }
+}

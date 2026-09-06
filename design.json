@@ -1,0 +1,979 @@
+{
+  "project": {
+    "name": "Marine Intelligence Platform",
+    "type": "agentic_ai_marine_dashboard",
+    "scope": "frontend_only",
+    "objective": "Build a production-quality conversational marine intelligence dashboard that visually demonstrates how users can explore marine, weather, oceanographic, geospatial and safety information through an Agentic AI interface.",
+    "frontend_must_be_fully_interactive": true,
+    "backend_required": false,
+    "data_mode": "mock_data_with_api_ready_interfaces"
+  },
+
+  "design_system": {
+    "aesthetic": "premium marine mission-control interface",
+    "principles": [
+      "minimal",
+      "intentional",
+      "strong typography",
+      "controlled information density",
+      "purposeful motion",
+      "high readability",
+      "professional scientific tooling",
+      "avoid generic SaaS dashboard aesthetics"
+    ],
+    "font": {
+      "family": "Geist",
+      "source": "Geist Fonts"
+    },
+    "component_foundation": {
+      "primary": "shadcn/ui",
+      "secondary": [
+        "Aceternity UI",
+        "Motion Primitives"
+      ]
+    },
+    "icons": {
+      "primary": "Hugeicons",
+      "style": "consistent thin/medium stroke icons"
+    },
+    "animation": {
+      "primary": "Motion",
+      "advanced": "GSAP",
+      "rule": "Use animation only when it communicates state, hierarchy or interaction."
+    },
+    "visual_effects": {
+      "liquid_glass": "limited",
+      "three_d": "avoid unless functionally useful",
+      "gradients": "subtle and restrained",
+      "glows": "reserved for active marine alerts, map layers and AI processing"
+    }
+  },
+
+  "color_system": {
+    "theme": "dark",
+    "background": {
+      "primary": "#071014",
+      "secondary": "#0B171C",
+      "surface": "#101E24",
+      "surface_elevated": "#14262D"
+    },
+    "text": {
+      "primary": "#F4F7F8",
+      "secondary": "#9BAEB5",
+      "muted": "#62767E"
+    },
+    "semantic": {
+      "safe": "#35C98A",
+      "warning": "#F4B942",
+      "danger": "#F05B62",
+      "info": "#4BA3FF"
+    },
+    "marine": {
+      "ocean": "#0A2733",
+      "sst": "#2E9CFF",
+      "chlorophyll": "#4BD58A",
+      "pfz": "#F2C94C"
+    },
+    "borders": "rgba(255,255,255,0.08)"
+  },
+
+  "application_shell": {
+    "layout": "full_viewport",
+    "structure": [
+      "sidebar",
+      "top_command_bar",
+      "main_workspace"
+    ],
+    "sidebar": {
+      "width": "72px",
+      "expanded_width": "240px",
+      "default_state": "collapsed",
+      "items": [
+        {
+          "id": "overview",
+          "label": "Overview",
+          "icon": "dashboard",
+          "route": "/"
+        },
+        {
+          "id": "marine_map",
+          "label": "Marine Map",
+          "icon": "map",
+          "route": "/map"
+        },
+        {
+          "id": "assistant",
+          "label": "AI Assistant",
+          "icon": "ai-chat",
+          "route": "/assistant"
+        },
+        {
+          "id": "alerts",
+          "label": "Alerts",
+          "icon": "alert",
+          "route": "/alerts"
+        },
+        {
+          "id": "routes",
+          "label": "Route Planner",
+          "icon": "route",
+          "route": "/routes"
+        },
+        {
+          "id": "analytics",
+          "label": "Analytics",
+          "icon": "analytics",
+          "route": "/analytics"
+        }
+      ],
+      "bottom_items": [
+        {
+          "id": "settings",
+          "label": "Settings",
+          "icon": "settings"
+        },
+        {
+          "id": "language",
+          "label": "Language",
+          "icon": "language"
+        },
+        {
+          "id": "profile",
+          "label": "Profile",
+          "icon": "user"
+        }
+      ],
+      "interaction": {
+        "hover_tooltip": true,
+        "expand_on_hover": true,
+        "mobile_behavior": "bottom_navigation"
+      }
+    }
+  },
+
+  "top_command_bar": {
+    "elements": [
+      {
+        "id": "location",
+        "type": "location_selector",
+        "default": "My Location",
+        "action": "open_location_selector"
+      },
+      {
+        "id": "global_search",
+        "type": "command_search",
+        "placeholder": "Ask about the ocean, weather, PFZs or safety...",
+        "supports_natural_language": true,
+        "keyboard_shortcut": "⌘K"
+      },
+      {
+        "id": "data_status",
+        "type": "system_status",
+        "states": [
+          "LIVE",
+          "SYNCING",
+          "OFFLINE"
+        ]
+      },
+      {
+        "id": "notification",
+        "type": "notification_button",
+        "action": "open_alert_center"
+      }
+    ]
+  },
+
+  "pages": {
+
+    "overview": {
+      "route": "/",
+      "title": "Marine Intelligence",
+      "description": "Real-time marine conditions, intelligence and safety overview.",
+
+      "layout": {
+        "desktop": "12_column_grid",
+        "tablet": "6_column_grid",
+        "mobile": "single_column"
+      },
+
+      "header": {
+        "eyebrow": "MARINE INTELLIGENCE",
+        "title": "Ocean conditions at a glance",
+        "subtitle": "Monitor marine conditions, fishing zones, weather risks and operational intelligence."
+      },
+
+      "primary_metrics": [
+        {
+          "id": "marine_safety",
+          "label": "Marine Safety",
+          "value": "LOW RISK",
+          "status": "safe",
+          "interaction": "open_safety_analysis"
+        },
+        {
+          "id": "nearest_pfz",
+          "label": "Nearest PFZ",
+          "value": "18.4 km",
+          "secondary": "NE of current location",
+          "interaction": "focus_nearest_pfz"
+        },
+        {
+          "id": "sea_temperature",
+          "label": "Sea Surface Temperature",
+          "value": "28.1°C",
+          "trend": "+0.4°C"
+        },
+        {
+          "id": "wave_height",
+          "label": "Wave Height",
+          "value": "0.8 m",
+          "status": "safe"
+        }
+      ],
+
+      "map": {
+        "type": "interactive_marine_map",
+        "priority": "highest",
+        "height": "520px",
+        "default_center": "user_location",
+        "controls": [
+          "zoom",
+          "locate_me",
+          "fullscreen",
+          "layers",
+          "map_style",
+          "measure_distance"
+        ],
+        "layers": [
+          {
+            "id": "pfz",
+            "label": "Potential Fishing Zones",
+            "enabled": true,
+            "visualization": "glowing_zone_polygons"
+          },
+          {
+            "id": "sst",
+            "label": "Sea Surface Temperature",
+            "enabled": false,
+            "visualization": "heatmap"
+          },
+          {
+            "id": "chlorophyll",
+            "label": "Chlorophyll",
+            "enabled": false,
+            "visualization": "density_heatmap"
+          },
+          {
+            "id": "weather",
+            "label": "Weather",
+            "enabled": false,
+            "visualization": "wind_particles"
+          },
+          {
+            "id": "waves",
+            "label": "Wave Conditions",
+            "enabled": false,
+            "visualization": "wave_overlay"
+          },
+          {
+            "id": "geofences",
+            "label": "Geofences",
+            "enabled": true,
+            "visualization": "boundary_polygons"
+          },
+          {
+            "id": "alerts",
+            "label": "Marine Alerts",
+            "enabled": true,
+            "visualization": "alert_markers"
+          }
+        ],
+        "interactions": [
+          "click_pfz",
+          "click_alert",
+          "click_geofence",
+          "hover_data_point",
+          "draw_route",
+          "measure_distance",
+          "toggle_layers"
+        ]
+      },
+
+      "right_panel": {
+        "title": "AI Marine Brief",
+        "cards": [
+          {
+            "title": "Current assessment",
+            "content": "Conditions are currently favourable for nearshore fishing.",
+            "status": "safe"
+          },
+          {
+            "title": "Key observation",
+            "content": "A high-productivity zone has been detected northeast of your current position."
+          },
+          {
+            "title": "Upcoming change",
+            "content": "Wind intensity is expected to increase later today."
+          }
+        ],
+        "cta": {
+          "label": "Ask AI about these conditions",
+          "action": "open_assistant_with_context"
+        }
+      },
+
+      "lower_sections": [
+        "marine_conditions",
+        "active_alerts",
+        "pfz_recommendations",
+        "forecast",
+        "recent_activity"
+      ]
+    },
+
+    "marine_map": {
+      "route": "/map",
+      "title": "Marine Map",
+      "layout": "map_first",
+
+      "map": {
+        "fullscreen": true,
+        "sidebar_overlay": true,
+        "layer_control": true,
+        "timeline_control": true,
+        "location_search": true,
+        "coordinate_display": true
+      },
+
+      "layer_panel": {
+        "sections": [
+          {
+            "title": "Ocean",
+            "layers": [
+              "SST",
+              "Chlorophyll",
+              "Ocean Productivity"
+            ]
+          },
+          {
+            "title": "Weather",
+            "layers": [
+              "Wind",
+              "Rainfall",
+              "Lightning",
+              "Cloud Cover"
+            ]
+          },
+          {
+            "title": "Sea State",
+            "layers": [
+              "Wave Height",
+              "Wave Direction",
+              "Tides"
+            ]
+          },
+          {
+            "title": "Operational",
+            "layers": [
+              "PFZ",
+              "Geofences",
+              "Protected Areas",
+              "Maritime Boundaries"
+            ]
+          }
+        ]
+      },
+
+      "map_inspector": {
+        "trigger": "click_map_feature",
+        "content": [
+          "location",
+          "coordinates",
+          "data_timestamp",
+          "source",
+          "measurements",
+          "risk_level",
+          "AI_interpretation"
+        ]
+      },
+
+      "timeline": {
+        "enabled": true,
+        "modes": [
+          "past",
+          "current",
+          "forecast"
+        ],
+        "controls": [
+          "play",
+          "pause",
+          "previous",
+          "next"
+        ]
+      }
+    },
+
+    "assistant": {
+      "route": "/assistant",
+      "title": "Marine AI Assistant",
+
+      "layout": {
+        "left": "conversation",
+        "right": "context_panel"
+      },
+
+      "conversation": {
+        "welcome": {
+          "title": "What do you need to know about the ocean?",
+          "subtitle": "Ask about fishing zones, weather, sea conditions, routes or safety."
+        },
+
+        "suggested_queries": [
+          "Where is the nearest Potential Fishing Zone today?",
+          "Is it safe to venture into the sea tomorrow morning?",
+          "What are the tide, weather and sea conditions near me?",
+          "Are there any cyclone or lightning alerts?",
+          "Which areas have high chlorophyll and favourable SST?"
+        ],
+
+        "message_types": [
+          "user",
+          "assistant",
+          "tool_execution",
+          "evidence",
+          "map_result",
+          "recommendation",
+          "alert"
+        ],
+
+        "assistant_response_structure": [
+          "direct_answer",
+          "confidence",
+          "reasoning_summary",
+          "key_factors",
+          "recommendation",
+          "evidence",
+          "map_action"
+        ],
+
+        "composer": {
+          "placeholder": "Ask anything about marine conditions...",
+          "supports_voice": true,
+          "supports_location_context": true,
+          "supports_attachment": false,
+          "send_shortcut": "Enter"
+        },
+
+        "agent_activity": {
+          "visible": true,
+          "states": [
+            "interpreting_request",
+            "planning",
+            "querying_weather",
+            "querying_ocean_data",
+            "performing_geospatial_analysis",
+            "assessing_risk",
+            "synthesizing_answer"
+          ],
+          "visualization": "compact_agent_trace"
+        }
+      },
+
+      "context_panel": {
+        "sections": [
+          "current_location",
+          "current_conditions",
+          "active_alerts",
+          "selected_map_area",
+          "data_sources"
+        ]
+      }
+    },
+
+    "alerts": {
+      "route": "/alerts",
+      "title": "Marine Alerts",
+
+      "summary": [
+        {
+          "label": "Critical",
+          "value": 0
+        },
+        {
+          "label": "Warning",
+          "value": 2
+        },
+        {
+          "label": "Information",
+          "value": 4
+        }
+      ],
+
+      "filters": [
+        "all",
+        "cyclone",
+        "lightning",
+        "high_waves",
+        "strong_wind",
+        "geofence",
+        "fishing_advisory"
+      ],
+
+      "alert_card": {
+        "fields": [
+          "severity",
+          "title",
+          "location",
+          "issued_at",
+          "valid_until",
+          "description",
+          "recommended_action",
+          "source"
+        ],
+        "actions": [
+          "view_on_map",
+          "mark_read",
+          "open_details"
+        ]
+      }
+    },
+
+    "routes": {
+      "route": "/routes",
+      "title": "Safe Route Planner",
+
+      "workflow": [
+        "select_start",
+        "select_destination",
+        "select_vessel_profile",
+        "analyze_conditions",
+        "generate_routes",
+        "compare_routes",
+        "select_route"
+      ],
+
+      "controls": {
+        "start": "map_or_location",
+        "destination": "map_or_location",
+        "departure_time": true,
+        "vessel_type": true,
+        "fuel_constraint": true
+      },
+
+      "route_results": [
+        {
+          "name": "Recommended Route",
+          "risk": "LOW",
+          "distance": "42 km",
+          "estimated_time": "2h 18m",
+          "reason": "Avoids forecast high-wave region."
+        },
+        {
+          "name": "Shortest Route",
+          "risk": "MEDIUM",
+          "distance": "36 km",
+          "estimated_time": "1h 56m",
+          "reason": "Crosses an area with deteriorating sea conditions."
+        }
+      ],
+
+      "visualization": {
+        "map": true,
+        "route_comparison": true,
+        "risk_segments": true,
+        "weather_overlay": true
+      }
+    },
+
+    "analytics": {
+      "route": "/analytics",
+      "title": "Marine Analytics",
+
+      "charts": [
+        {
+          "id": "sst_history",
+          "type": "line",
+          "title": "Sea Surface Temperature",
+          "time_range": "30_days"
+        },
+        {
+          "id": "chlorophyll_history",
+          "type": "line",
+          "title": "Chlorophyll Concentration",
+          "time_range": "30_days"
+        },
+        {
+          "id": "wave_forecast",
+          "type": "line",
+          "title": "Wave Height Forecast",
+          "time_range": "48_hours"
+        },
+        {
+          "id": "wind_forecast",
+          "type": "line",
+          "title": "Wind Forecast",
+          "time_range": "48_hours"
+        }
+      ],
+
+      "filters": [
+        "location",
+        "date_range",
+        "data_source",
+        "layer"
+      ]
+    }
+  },
+
+  "marine_components": {
+
+    "condition_card": {
+      "fields": [
+        "label",
+        "value",
+        "unit",
+        "trend",
+        "status",
+        "timestamp"
+      ],
+      "interaction": "open_detail"
+    },
+
+    "risk_score": {
+      "visual": "circular_score",
+      "scale": "0_to_100",
+      "labels": [
+        "SAFE",
+        "CAUTION",
+        "DANGEROUS"
+      ],
+      "click_action": "open_risk_breakdown"
+    },
+
+    "pfz_card": {
+      "fields": [
+        "distance",
+        "direction",
+        "productivity",
+        "sst",
+        "chlorophyll",
+        "confidence"
+      ],
+      "actions": [
+        "show_on_map",
+        "navigate",
+        "ask_ai"
+      ]
+    },
+
+    "evidence_panel": {
+      "title": "Evidence",
+      "fields": [
+        "data_source",
+        "timestamp",
+        "observation",
+        "contribution_to_decision"
+      ],
+      "expandable": true
+    },
+
+    "agent_trace": {
+      "display": "compact_vertical_timeline",
+      "steps": [
+        "Intent detected",
+        "Marine data retrieved",
+        "Weather data analyzed",
+        "Geospatial constraints checked",
+        "Risk assessed",
+        "Recommendation generated"
+      ],
+      "default": "collapsed"
+    }
+  },
+
+  "mock_data": {
+    "user_location": {
+      "latitude": 18.52,
+      "longitude": 73.85,
+      "label": "Current Location"
+    },
+
+    "conditions": {
+      "sst": 28.1,
+      "chlorophyll": 0.74,
+      "wave_height": 0.8,
+      "wind_speed": 14,
+      "wind_direction": "SW",
+      "visibility": 9.2,
+      "tide": "Rising"
+    },
+
+    "pfz": [
+      {
+        "id": "PFZ-001",
+        "distance_km": 18.4,
+        "direction": "NE",
+        "sst": 27.8,
+        "chlorophyll": 0.92,
+        "productivity": "HIGH",
+        "confidence": 91
+      },
+      {
+        "id": "PFZ-002",
+        "distance_km": 31.7,
+        "direction": "E",
+        "sst": 28.3,
+        "chlorophyll": 0.81,
+        "productivity": "HIGH",
+        "confidence": 84
+      }
+    ],
+
+    "alerts": [
+      {
+        "id": "ALT-001",
+        "severity": "warning",
+        "type": "strong_wind",
+        "title": "Increasing wind expected",
+        "location": "Eastern offshore region",
+        "valid_until": "18:00"
+      },
+      {
+        "id": "ALT-002",
+        "severity": "information",
+        "type": "fishing_advisory",
+        "title": "Favourable fishing conditions",
+        "location": "Northeast offshore region"
+      }
+    ]
+  },
+
+  "interactions": {
+    "global": [
+      "sidebar_navigation",
+      "command_palette",
+      "notifications",
+      "theme_persistence",
+      "language_selection"
+    ],
+
+    "map": [
+      "zoom",
+      "pan",
+      "layer_toggle",
+      "feature_selection",
+      "location_selection",
+      "route_drawing",
+      "measurement"
+    ],
+
+    "ai": [
+      "send_message",
+      "suggested_query",
+      "conversation_context",
+      "open_map_result",
+      "open_evidence",
+      "open_recommendation"
+    ],
+
+    "cards": [
+      "hover",
+      "click",
+      "expand",
+      "navigate"
+    ]
+  },
+
+  "frontend_states": {
+    "loading": {
+      "use_skeletons": true,
+      "avoid_full_page_spinner": true
+    },
+    "empty": {
+      "message": "No marine information is available for this area."
+    },
+    "error": {
+      "message": "Marine data could not be loaded.",
+      "actions": [
+        "retry",
+        "use_cached_data"
+      ]
+    },
+    "offline": {
+      "banner": "Offline mode — showing latest available marine data."
+    },
+    "ai_processing": {
+      "show_agent_trace": true,
+      "show_progressive_response": true
+    }
+  },
+
+  "responsive_design": {
+    "desktop": {
+      "min_width": 1280,
+      "layout": "full_dashboard"
+    },
+    "tablet": {
+      "min_width": 768,
+      "layout": "adaptive_dashboard"
+    },
+    "mobile": {
+      "layout": "stacked",
+      "map_priority": "high",
+      "sidebar": "bottom_navigation",
+      "assistant": "full_screen_modal"
+    }
+  },
+
+  "motion": {
+    "page_transition": "subtle_fade_slide",
+    "card_hover": "small_translate_and_shadow",
+    "map_layer_transition": "smooth",
+    "alert_entry": "controlled_slide",
+    "ai_message": "progressive_reveal",
+    "agent_processing": "subtle_pulse",
+    "sidebar": "spring_expand",
+    "duration": {
+      "micro": "120ms",
+      "standard": "220ms",
+      "complex": "400ms"
+    },
+    "reduced_motion": true
+  },
+
+  "accessibility": {
+    "keyboard_navigation": true,
+    "focus_states": true,
+    "aria_labels": true,
+    "color_not_only_indicator": true,
+    "reduced_motion_support": true,
+    "minimum_contrast": "WCAG_AA"
+  },
+
+  "engineering_requirements": {
+    "framework": "React / Next.js",
+    "styling": "Tailwind CSS",
+    "components": "shadcn/ui",
+    "icons": "Hugeicons",
+    "animation": "Motion",
+    "map": "componentized_map_abstraction",
+    "charts": "Recharts_or_existing_project_chart_system",
+    "state_management": "React_state_or_lightweight_store",
+    "mock_api": true,
+    "api_layer": {
+      "required": true,
+      "purpose": "Keep frontend independent from eventual backend implementation.",
+      "services": [
+        "marineService",
+        "weatherService",
+        "pfzService",
+        "alertService",
+        "geospatialService",
+        "aiService"
+      ]
+    },
+    "data_contracts": "Define TypeScript interfaces for all marine entities.",
+    "no_hardcoded_ui_logic": true
+  },
+
+  "quality_requirements": {
+    "all_buttons_must_work": true,
+    "all_navigation_must_work": true,
+    "all_filters_must_work": true,
+    "map_controls_must_work": true,
+    "layer_toggles_must_work": true,
+    "search_must_work_with_mock_data": true,
+    "chat_must_work_with_mock_responses": true,
+    "route_planner_must_work_with_mock_routes": true,
+    "alerts_must_be_interactive": true,
+    "responsive_layout_required": true,
+    "no_dead_controls": true,
+    "no_placeholder_sections": true,
+    "no_broken_states": true
+  },
+
+  "resource_usage": {
+    "approved_resources": {
+      "typography": [
+        "Geist Fonts"
+      ],
+      "components": [
+        "shadcn/ui",
+        "Aceternity UI",
+        "Motion Primitives"
+      ],
+      "icons": [
+        "Hugeicons"
+      ],
+      "inspiration": [
+        "Refero Styles",
+        "Mobbin",
+        "Manus",
+        "OriginKit",
+        "Motion Sites"
+      ],
+      "animation": [
+        "Motion",
+        "GSAP"
+      ],
+      "optional_visual": [
+        "Liquid Glass JS",
+        "React Three Fiber",
+        "Haikei"
+      ]
+    },
+    "rules": [
+      "Prefer existing project components.",
+      "Use the smallest appropriate resource for each requirement.",
+      "Do not introduce libraries only for visual effects.",
+      "Do not combine multiple animation libraries unnecessarily.",
+      "Avoid excessive gradients.",
+      "Avoid excessive glass effects.",
+      "Avoid excessive motion.",
+      "Avoid generic AI/SaaS dashboard patterns.",
+      "Maintain a coherent visual language."
+    ]
+  },
+
+  "implementation_order": [
+    "application_shell",
+    "design_tokens",
+    "navigation",
+    "overview_dashboard",
+    "interactive_map",
+    "marine_condition_components",
+    "alerts",
+    "ai_assistant",
+    "route_planner",
+    "analytics",
+    "responsive_behavior",
+    "loading_error_offline_states",
+    "accessibility",
+    "interaction_testing",
+    "visual_polish"
+  ],
+
+  "definition_of_done": {
+    "frontend_complete": true,
+    "requirements": [
+      "Dashboard loads without runtime errors.",
+      "Navigation works across all pages.",
+      "Map renders and responds to interaction.",
+      "Marine layers can be toggled.",
+      "PFZ features can be selected.",
+      "Marine condition cards display mock data.",
+      "Alerts can be filtered and opened.",
+      "AI assistant accepts natural-language queries.",
+      "AI assistant returns contextual mock responses.",
+      "AI responses can open relevant map locations.",
+      "Evidence panels expand and collapse.",
+      "Route planner generates and compares routes.",
+      "Analytics charts render data.",
+      "Responsive layouts work across desktop, tablet and mobile.",
+      "Loading, empty, error and offline states exist.",
+      "Keyboard navigation works.",
+      "No major interaction is visually decorative without behavior.",
+      "Frontend architecture is ready for backend API integration."
+    ]
+  }
+}
