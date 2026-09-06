@@ -1,8 +1,8 @@
 "use client";
-import { useCallback, useState } from "react";
-import { GoogleMap, Marker, Polygon, useJsApiLoader } from "@react-google-maps/api";
+import { useCallback, useEffect, useState } from "react";
+import { GoogleMap, Marker, Polygon, Polyline, useJsApiLoader } from "@react-google-maps/api";
 import { pfzData, userLocation } from "@/lib/mock";
-import type { LayerId, MapCenter } from "./LeafletBase";
+import type { DrawnRoute, FitBox, LayerId, MapCenter } from "./LeafletBase";
 
 const containerStyle = { width: "100%", height: "100%" };
 const CENTER: MapCenter = { lat: 18.55, lng: 74.0 };
@@ -56,6 +56,9 @@ export default function GoogleBase({
   onMove,
   onReady,
   onInspect,
+  route,
+  routeAlt,
+  fit,
 }: {
   apiKey: string;
   layers: Record<LayerId, boolean>;
@@ -65,6 +68,9 @@ export default function GoogleBase({
   onReady: (map: any) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onInspect: (data: any) => void;
+  route?: DrawnRoute | null;
+  routeAlt?: DrawnRoute | null;
+  fit?: FitBox | null;
 }) {
   const { isLoaded, loadError } = useJsApiLoader({ id: "marine-google-map", googleMapsApiKey: apiKey });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -78,6 +84,16 @@ export default function GoogleBase({
     },
     [onReady]
   );
+
+  // External fit-to-bounds (route planner).
+  useEffect(() => {
+    if (!map || !fit || typeof google === "undefined") return;
+    map.fitBounds(
+      new google.maps.LatLngBounds({ lat: fit.s, lng: fit.w }, { lat: fit.n, lng: fit.e }),
+      24
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fit?.nonce]);
 
   // Built per-render once the Google script is loaded (cheap object, no hook needed).
   const icons =
@@ -189,6 +205,19 @@ export default function GoogleBase({
           position={{ lat: userLocation.latitude, lng: userLocation.longitude }}
           icon={icons.user}
           label={{ text: `You • ${userLocation.latitude.toFixed(2)}°N ${userLocation.longitude.toFixed(2)}°E`, color: "#fff", fontSize: "11px" }}
+        />
+      )}
+
+      {routeAlt && routeAlt.coords.length > 1 && (
+        <Polyline
+          path={routeAlt.coords.map(([lat, lng]) => ({ lat, lng }))}
+          options={{ strokeColor: routeAlt.color, strokeWeight: 3, strokeOpacity: 0.85 }}
+        />
+      )}
+      {route && route.coords.length > 1 && (
+        <Polyline
+          path={route.coords.map(([lat, lng]) => ({ lat, lng }))}
+          options={{ strokeColor: route.color, strokeWeight: 5, strokeOpacity: 0.95 }}
         />
       )}
     </GoogleMap>

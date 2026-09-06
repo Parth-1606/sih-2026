@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
@@ -113,6 +113,50 @@ function MapReady({ onReady }: { onReady: (map: L.Map) => void }) {
   return null;
 }
 
+export interface DrawnRoute {
+  coords: [number, number][];
+  color: string;
+  dash?: boolean;
+}
+
+export interface FitBox {
+  s: number;
+  w: number;
+  n: number;
+  e: number;
+  nonce: number;
+}
+
+function FitBounds({ box }: { box: FitBox | null | undefined }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!box) return;
+    map.fitBounds([[box.s, box.w], [box.n, box.e]], { padding: [24, 24] });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [box?.nonce]);
+  return null;
+}
+
+/** Animated vessel dot along a route. Skipped when reduced-motion is set. */
+function RouteAnimator({ job }: { job: { coords: [number, number][]; nonce: number } | null | undefined }) {
+  const [pos, setPos] = useState<[number, number] | null>(null);
+  useEffect(() => {
+    if (!job || job.coords.length < 2) return;
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    let i = 0;
+    const step = Math.max(1, Math.floor(job.coords.length / 120));
+    const id = window.setInterval(() => {
+      setPos(job.coords[Math.min(i, job.coords.length - 1)]);
+      i += step;
+      if (i >= job.coords.length) window.clearInterval(id);
+    }, 60);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.nonce]);
+  if (!pos) return null;
+  return <Circle center={pos} radius={900} pathOptions={{ color: "#fff", weight: 2, fillColor: "#4BA3FF", fillOpacity: 1 }} />;
+}
+
 export interface AnomalyMarkerData {
   id: string;
   name: string;
@@ -135,6 +179,10 @@ export default function LeafletBase({
   anomalies,
   selectedAnomalyId,
   onSelectAnomaly,
+  route,
+  routeAlt,
+  fit,
+  animateRoute,
 }: {
   styleMode: StyleMode;
   layers: Record<LayerId, boolean>;
@@ -146,6 +194,10 @@ export default function LeafletBase({
   anomalies?: AnomalyMarkerData[];
   selectedAnomalyId?: string | null;
   onSelectAnomaly?: (id: string) => void;
+  route?: DrawnRoute | null;
+  routeAlt?: DrawnRoute | null;
+  fit?: FitBox | null;
+  animateRoute?: { coords: [number, number][]; nonce: number } | null;
 }) {
   const icons = useMemo(() => {
     const user = L.divIcon({
@@ -197,6 +249,25 @@ export default function LeafletBase({
       )}
       <MapEvents onMove={onMove} />
       <MapReady onReady={onReady} />
+      <FitBounds box={fit} />
+      <RouteAnimator job={animateRoute} />
+
+      {routeAlt && routeAlt.coords.length > 1 && (
+        <Polyline
+          positions={routeAlt.coords}
+          pathOptions={{ color: routeAlt.color, weight: 3, opacity: 0.85, dashArray: "8 7" }}
+        />
+      )}
+      {route && route.coords.length > 1 && (
+        <>
+          <Polyline
+            positions={route.coords}
+            pathOptions={{ color: route.color, weight: 4.5, opacity: 0.95 }}
+          />
+          <Circle center={route.coords[0]} radius={600} pathOptions={{ color: route.color, weight: 0, fillColor: "#35C98A", fillOpacity: 1 }} />
+          <Circle center={route.coords[route.coords.length - 1]} radius={600} pathOptions={{ color: route.color, weight: 0, fillColor: "#F4B942", fillOpacity: 1 }} />
+        </>
+      )}
 
       {/* Real ORCA Anomalous Buoy Stations */}
       {anomalies &&

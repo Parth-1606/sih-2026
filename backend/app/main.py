@@ -18,6 +18,7 @@ from app.api.routes import router as api_router
 from app.core.config import settings
 from app.data.seed import generate_seed_observations
 from app.services.anomaly_detection import evaluate_observation
+from app.services.live_ingest import ingest_live_readings
 from app.services.store import store
 
 
@@ -39,6 +40,13 @@ def _seed_demo_data() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _seed_demo_data()
+    # Best-effort live ingestion: real readings join the store at boot.
+    # Never blocks startup — seed baseline stands alone if offline.
+    try:
+        summary = ingest_live_readings(store)
+        print(f"[orca] live ingest: {summary['ingested']} readings, {summary['flagged']} flagged")
+    except Exception as exc:
+        print(f"[orca] live ingest skipped ({exc})")
     yield
 
 

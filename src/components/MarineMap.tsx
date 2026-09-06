@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { userLocation } from "@/lib/mock";
-import type { AnomalyMarkerData, LayerId, MapCenter, StyleMode } from "./LeafletBase";
+import type { AnomalyMarkerData, DrawnRoute, FitBox, LayerId, MapCenter, StyleMode } from "./LeafletBase";
 
 // Client-only: Leaflet/Google touch `window` at import time, so never SSR them.
 const LeafletBase = dynamic(() => import("./LeafletBase"), {
@@ -50,6 +50,10 @@ export default function MarineMap({
   anomalies,
   selectedAnomalyId,
   onSelectAnomaly,
+  route,
+  routeAlt,
+  fit,
+  animateRoute,
 }: {
   height?: number | string;
   interactive?: boolean;
@@ -60,6 +64,10 @@ export default function MarineMap({
   anomalies?: AnomalyMarkerData[];
   selectedAnomalyId?: string | null;
   onSelectAnomaly?: (id: string) => void;
+  route?: DrawnRoute | null;
+  routeAlt?: DrawnRoute | null;
+  fit?: FitBox | null;
+  animateRoute?: { coords: [number, number][]; nonce: number } | null;
 }) {
   const router = useRouter();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -145,6 +153,9 @@ export default function MarineMap({
             onMove={handleMove}
             onReady={handleReady}
             onInspect={handleInspect}
+            route={route}
+            routeAlt={routeAlt}
+            fit={fit}
           />
         ) : (
           <div className="absolute inset-0 z-0 flex items-center justify-center bg-[#0A2733] p-6">
@@ -172,6 +183,10 @@ export default function MarineMap({
           anomalies={anomalies}
           selectedAnomalyId={selectedAnomalyId}
           onSelectAnomaly={onSelectAnomaly}
+          route={route}
+          routeAlt={routeAlt}
+          fit={fit}
+          animateRoute={animateRoute}
         />
       )}
 

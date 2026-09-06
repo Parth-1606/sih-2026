@@ -14,6 +14,7 @@ from app.models.investigation import Investigation, InvestigationCreate
 from app.models.observation import Observation, ObservationCreate
 from app.services.anomaly_detection import evaluate_observation
 from app.services.collaboration import investigate_anomaly
+from app.services.live_ingest import ingest_live_readings
 from app.services.store import store
 
 router = APIRouter()
@@ -68,6 +69,20 @@ def get_anomaly(anomaly_id: str) -> AnomalyResult:
     if result is None:
         raise HTTPException(status_code=404, detail="Anomaly not found")
     return result
+
+
+@router.post("/observations/ingest-live")
+def ingest_live() -> dict:
+    """
+    Pull recent hourly SST + wave readings from Open-Meteo (no key) for the
+    buoy location and replay them through the standard anomaly-evaluation
+    path. Tagged source="open-meteo-live" to distinguish from seed data.
+    502 if the upstream feed is unreachable — seed baseline still stands.
+    """
+    try:
+        return ingest_live_readings(store)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Live feed unreachable: {exc}")
 
 
 # --- Phase 3: Collaborative Agent Investigations ---
